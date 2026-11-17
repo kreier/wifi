@@ -15,6 +15,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.0] - 2026-11-17
+
+### Added
+- **Firmware (v1.1.0)**: **Power-Aware Measurement Cadence Matrix** (`app_main.h`):
+  - **Battery Powered Mode** ($\le 4.20\text{ V}$): Base 10-minute cycle. 13-channel airtime survey and monitored network latency/speed probing are executed every **30 minutes** to eliminate heavy radio drain and extend 18650 LiPo battery lifetime. Latency probes are strictly performed only for networks detected during the Wi-Fi scan survey.
+  - **Permanently Powered Mode** ($> 4.20\text{ V}$ / no battery): 2-minute cycle with peak RSSI, max airtime %, and unique Bluetooth devices accumulated in RAM, uploading 10-minute maximums with latency probes run every 10 minutes.
+- **Firmware (v1.1.0)**: **In-Memory 24-Hour 48-Slot Revolving Buffer** (`channel_history.h`):
+  - Preserves 48 30-minute intervals of 13-channel airtime, unique BLE devices, Classic BT devices, and battery voltage.
+  - **Zero Flash Wear When Online**: When internet connectivity and uploads succeed every 10 minutes, zero bytes are written to flash.
+  - **Offline Resilience**: Automatically commits the 48-slot history buffer and spool records to raw flash sectors ONLY when offline or when upload attempts fail, transmitting the backlog once connectivity is restored.
+- **Backend & Database (v1.1.0)**: **Migration 0011** (`0011_daily_30min_summaries_and_diagnostics_history.sql`):
+  - `daily_30min_summaries`: Daily cron job (`00:15 UTC`) aggregates yesterday's 48 30-minute intervals (channel max airtime, unique BLE max, Classic BT max, battery voltage) per active station.
+  - `station_network_diagnostics_history`: Records gateway security audits, PMTUD MTU tests, DNS rebind checks, and open ports long-term on first observation. Subsequent entries are inserted **strictly on configuration/audit changes**, ignoring DNS latency fluctuations.
+- **Web UI (v1.1.0)**:
+  - 24-Hour Spectrum & BLE Heatmap expanded by default.
+  - Battery discharge chart expanded by default (for battery-equipped nodes).
+  - Web Flasher dual-mode flashing: **Update Firmware Only (Keep Settings & Data)** via `manifest-update.json` and **Clean Install (Full Flash & Partitions)** via `manifest.json`.
+  - Added live Bluetooth KPI metrics for Key Vendors (Apple, Microsoft, Samsung) and Device Types (Smartphone, Computer, Beacon).
+  - Removed "Previous 24 Hours" device list in favor of real-time active device inspection.
+  - Fixed footer styling, font inheritance, and centered flex layout.
+- **Documentation**: Added [ADR 0006: Power-Aware Cadence and 30-Minute Aggregation](docs/adr/0006-power-aware-cadence-and-30min-aggregation.md).
+
+---
+
 ## [2.0.8 / 1.0.8] - 2026-11-16
 
 ### Changed

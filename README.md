@@ -47,49 +47,108 @@ The `kreier/wifi` platform is built on an edge-native, zero-trust, and power-opt
 
 ---
 
+## Power-Aware Measurement Cadence Matrix
+
+To maximize battery runtime on single-cell 18650 LiPo cells while delivering high-resolution spectrum telemetry, the firmware dynamically selects measurement cadences based on voltage sensed on **IO35**:
+
+| Measurement Task | Battery Powered ($\le 4.20\text{ V}$) | USB / AC Powered ($> 4.20\text{ V}$ / No Bat) | RAM Storage & Rollup Invariant |
+| :--- | :---: | :---: | :--- |
+| **1) Wi-Fi Spectrum Scan** | Every 10 minutes | Every 2 minutes | Peak RSSI & quality accumulated in RAM per 10m window |
+| **2) BLE & Classic Bluetooth Scan** | Every 10 minutes | Every 2 minutes | Max unique BLE & Classic BT devices accumulated in RAM |
+| **3) 13-Channel Airtime Utilization** | Every 30 minutes | Every 2 minutes | Max airtime % across 13 channels accumulated in RAM |
+| **4) Station Speed & Latency Probes** | Every 30 minutes *(Visible APs Only)* | Every 10 minutes *(Visible APs Only)* | Gateway, DHCP, DNS, and HTTP latency probes |
+| **Telemetry Upload Attempt** | Every 10 minutes *(If AP or S24 visible)* | Every 10 minutes *(If AP or S24 visible)* | Directly transmitted from RAM (Zero flash wear when online) |
+| **Flash Persistence** | Offline only (30-min buffer + spool) | Offline only (30-min buffer + spool) | No flash writes when telemetry upload succeeds |
+
+---
+
 ## Architecture Overview
 
 ```mermaid
 flowchart TD
-    subgraph Commissioning ["1. Commissioning Phase"]
-        AP["Soft-AP: WIFI-Mon-XXXX<br/>IP: 192.168.4.1"]
-        Portal["Captive Portal Web UI<br/>(SSIDs, URL, MASTER_PHRASE)"]
-        Reg["POST /register<br/>{station_id, bootstrap_secret}"]
-        AP --> Portal --> Reg
+    subgraph EdgeNodes["Edge Fleet Nodes (ESP32 Microcontrollers)"]
+        subgraph HardwareProfiles["Hardware Targets"]
+            T18["LILYGO TTGO T18<br/>(IO5 LED, IO35 Battery Divider)"]
+            T8["LILYGO T8<br/>(IO21 LED, IO35 Battery Divider)"]
+            DevKit["ESP32 DevKit V1 / Custom<br/>(IO2 LED / Configurable)"]
+        end
+
+        subgraph CadenceManager["Adaptive Power Cadence & RAM Aggregation"]
+            PowerSense{"Battery Sensing (IO35)<br/>Vbat <= 4.2V ?"}
+            BatMode["Battery Cadence (10-min interval)<br/>• Wi-Fi Scan: Every 10m<br/>• BLE + Classic Scan: Every 10m<br/>• 13-Ch Airtime: Every 30m<br/>• Speed/Latency Probes: Every 30m"]
+            PwrMode["Powered Cadence (2-min interval)<br/>• Wi-Fi Scan: Every 2m (RAM Max)<br/>• BLE + Classic Scan: Every 2m (RAM Max)<br/>• 13-Ch Airtime: Every 2m (RAM Max)<br/>• Speed/Latency Probes: Every 10m"]
+            RAMBuffer["In-Memory RAM Accumulator<br/>(Max RSSI, Max Airtime %, Unique BT Devices)"]
+        end
+
+        subgraph StoragePipeline["Storage & Spooling Engine"]
+            ChanHistRAM["48-Slot 24h Revolving Buffer<br/>(In-Memory Channel & BT History)"]
+            FlashSpool["Offline SPI Flash Spool<br/>(Raw Circular Buffer, 190 KB)"]
+            FlashHist["Flash Channel History Sectors<br/>(Preserved only when offline)"]
+        end
     end
 
-    subgraph ESP32 ["2. ESP32 Node Lifecycle (Every 10 min)"]
-        Boot["Cold Boot or Wake"]
-        Chan["Promiscuous Survey<br/>13 Channels (Airtime & Contention)"]
-        Scan["Wi-Fi 2.4 GHz Scan Survey<br/>(SSID, RSSI, Phy Mode, Enc)"]
-        NTP["NTP Sync (every 24h) & OTA<br/>(Visible Monitored / Backup AP)"]
-        BT["Bluetooth Scan<br/>(BLE & Classic BR/EDR)"]
-        Bench["Sequential Benchmarks (up to 5 SSIDs)<br/>- Assoc Time (ms)<br/>- DHCP Lease Time (ms)<br/>- HTTP Latency (5 targets + Gateway)"]
-        Upload["Direct RAM Upload / Failover<br/>POST /data (Bearer Token)"]
-        Spool["Raw Flash Circular Spool<br/>raw_spool Partition (192 KB)"]
-        Sleep["ESP32 Light Sleep<br/>(Remainder of 10 min)"]
-
-        Boot --> Chan --> Scan --> NTP --> BT --> Bench --> Upload
-        Upload -.->|Offline Failover| Spool
-        Upload --> Sleep
-        Spool --> Sleep
-        Sleep -.->|Timer Wakeup| Boot
+    subgraph RFEnvironment["Wireless Spectrum & Targets"]
+        APScan["2.4 GHz 802.11b/g/n Spectrum<br/>(Survey APs & BSSIDs)"]
+        AirtimeScan["13 Promiscuous Channels<br/>(Frame Counters & Contention %)"]
+        BTScan["Bluetooth Low Energy & Classic<br/>(RPA De-randomization & OUI / COD)"]
+        SpeedProbe["Target Network Gateways<br/>(DHCP, DNS IPv4/v6, HTTP Latencies)"]
+        BackupAP["Backup Uplink Hotspot<br/>('S24' / Emergency Access Point)"]
     end
 
-    subgraph Backend ["3. Cloudflare Edge Backend & Dashboards"]
-        Worker["Cloudflare Worker<br/>(TypeScript API & Router)"]
-        D1[("Cloudflare D1<br/>SQLite Database")]
-        Cron["Daily Cron Trigger (00:15 UTC)<br/>- 30-day Raw Purge<br/>- Daily Rollup Aggregation"]
-        CFUI["Cloudflare Edge UI<br/>https://wifi.kreier.workers.dev"]
-        GHUI["GitHub Pages UI<br/>https://kreier.github.io/wifi"]
+    subgraph CloudflareEdge["Cloudflare Serverless Edge Infrastructure"]
+        WorkerRouter["Cloudflare Worker Router<br/>(https://wifi.kreier.workers.dev)"]
+        AuthIngest["Bearer Token & Zero-Trust Validation<br/>(/data, /register)"]
+        OTAService["OTA Firmware Streaming Proxy<br/>(/api/ota, /firmware/*)"]
+        CronJob["Daily Maintenance Cron (00:15 UTC)<br/>• 48-Interval 30-min Rollups<br/>• Change-Only Diagnostics History<br/>• 30-Day Purge & Rotation"]
 
-        Reg --> Worker
-        Upload --> Worker
-        Worker <--> D1
-        Cron --> D1
-        D1 --> CFUI
-        Worker -.->|API /api/stations| GHUI
+        subgraph D1Database["Cloudflare D1 SQLite Database (wifi-mon-db)"]
+            T_Meas["measurements & daily_summaries"]
+            T_30Min["daily_30min_summaries (48 slots/day)"]
+            T_Chan["station_channel_utilization"]
+            T_BT["station_bluetooth_summary & latest"]
+            T_Diag["station_network_diagnostics<br/>& diagnostics_history (Change-only)"]
+            T_Bat["station_battery_history"]
+        end
     end
+
+    subgraph FrontendClients["Dual Dashboards & Management Tools"]
+        WorkerUI["Server-Rendered Dashboard<br/>(Cloudflare Worker SSR)"]
+        PagesUI["Static Dashboard Mirror<br/>(GitHub Pages: kreier.github.io/wifi)"]
+        WebFlasher["Web Serial Browser Flasher<br/>(ESP Web Tools Zero-Install)"]
+    end
+
+    %% Edge node data flows
+    HardwareProfiles --> PowerSense
+    PowerSense -->|Battery <= 4.2V| BatMode
+    PowerSense -->|USB / AC > 4.2V| PwrMode
+    BatMode --> RAMBuffer
+    PwrMode --> RAMBuffer
+
+    RAMBuffer --> APScan
+    RAMBuffer --> AirtimeScan
+    RAMBuffer --> BTScan
+    RAMBuffer --> SpeedProbe
+
+    SpeedProbe -.->|Probe only if visible| APScan
+
+    RAMBuffer --> ChanHistRAM
+
+    ChanHistRAM -->|Online Direct RAM Stream| WorkerRouter
+    ChanHistRAM -->|Upload Failed / Offline| FlashHist
+    RAMBuffer -->|Upload Failed / Offline| FlashSpool
+
+    BackupAP -.->|Failover Uplink| WorkerRouter
+
+    %% Worker backend flows
+    WorkerRouter --> AuthIngest
+    WorkerRouter --> OTAService
+    AuthIngest --> D1Database
+    CronJob --> D1Database
+
+    %% Frontend client flows
+    D1Database --> WorkerUI
+    D1Database --> PagesUI
+    OTAService --> WebFlasher
 ```
 
 ---
@@ -100,7 +159,8 @@ flowchart TD
 kreier/wifi/
 ├── .github/
 │   └── workflows/
-│       └── deploy-pages.yml  # GitHub Actions workflow deploying to GitHub Pages
+│       ├── build-release.yml # Builds firmware and packages release assets
+│       └── deploy-pages.yml  # Deploys docs to GitHub Pages
 ├── docs/                     # Static GitHub Pages web files & ADRs
 │   ├── index.html            # Standalone responsive web dashboard
 │   ├── 404.html              # SPA client router for direct station routes (e.g. /9E1-9)
@@ -109,7 +169,8 @@ kreier/wifi/
 │       ├── 0002-per-device-token-provisioning.md
 │       ├── 0003-dual-build-layout.md
 │       ├── 0004-fleet-ota-and-battery-monitoring.md
-│       └── 0005-bluetooth-ble-spectrum-and-derandomization.md
+│       ├── 0005-bluetooth-ble-spectrum-and-derandomization.md
+│       └── 0006-power-aware-cadence-and-30min-aggregation.md
 ├── firmware/                 # Dual-compatible firmware source
 │   ├── platformio.ini        # PlatformIO targets: esp32dev unified
 │   ├── src/
@@ -118,6 +179,20 @@ kreier/wifi/
 │   │   └── wifi.ino          # Arduino IDE sketch entrypoint
 │   └── include/              # Shared modular firmware components
 │       ├── app_config.h      # Preferences NVS config & token management
+│       ├── app_main.h        # Master lifecycle & power-aware cadence manager
+│       ├── app_state.h       # Shared data models and structs
+│       ├── api_client.h      # HTTPS telemetry upload client
+│       ├── bluetooth_scanner.h # 2.4 GHz BLE & Classic scan engine
+│       ├── board_pins.h      # Hardware profile pin mappings & battery ADC
+│       ├── captive_portal.h  # Soft-AP captive portal setup server
+│       ├── channel_analyzer.h # Promiscuous 13-channel congestion survey
+│       ├── channel_history.h # 48-slot revolving 24h 30-minute buffer
+│       ├── latency_prober.h  # Station connection & speed probes
+│       ├── led_controller.h  # Non-blocking LED status indicator
+│       ├── ntp_sync.h        # SNTP time synchronization manager
+│       ├── ota_manager.h     # Background OTA update manager
+│       ├── spool_manager.h   # Raw SPI flash circular spool
+│       └── wifi_scanner.h    # 2.4 GHz spectrum scan survey engine
 │       ├── app_main.h        # Top-level state machine & lifecycle
 │       ├── app_state.h       # Shared data models & structures
 │       ├── api_client.h      # HTTPS /register and /data client

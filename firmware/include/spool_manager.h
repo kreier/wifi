@@ -8,11 +8,13 @@
 // Raw Partition Telemetry Spool (No LittleFS needed!)
 // Partition: 'spiffs' partition in min_spiffs.csv (192 KB / 48 sectors)
 // Sector 0 (0..4095): Header & State
-// Sectors 1..47 (4096..196607): Circular binary records
+// Sectors 1..3 (4096..16383): 48-slot 30-minute Channel History Buffer
+// Sectors 4..47 (16384..196607): Circular binary records
 
 #define SPOOL_MAGIC_HEADER 0x574D4F4E // "WMON"
 #define SPOOL_REC_MAGIC    0xAA55
 #define SECTOR_SIZE        4096
+#define SPOOL_START_OFFSET 0x4000 // Offset 16 KB (Sector 4)
 
 struct SpoolHeader {
     uint32_t magic;
@@ -79,9 +81,9 @@ public:
         if (!part) return false;
 
         SpoolHeader hdr;
-        if (esp_partition_read(part, 0, &hdr, sizeof(hdr)) != ESP_OK || hdr.magic != SPOOL_MAGIC_HEADER) {
+        if (esp_partition_read(part, 0, &hdr, sizeof(hdr)) != ESP_OK || hdr.magic != SPOOL_MAGIC_HEADER || hdr.write_offset < SPOOL_START_OFFSET) {
             clearSpool();
-            hdr.write_offset = SECTOR_SIZE;
+            hdr.write_offset = SPOOL_START_OFFSET;
             hdr.record_count = 0;
         }
 
@@ -213,7 +215,7 @@ public:
         // Check if write_offset exceeds partition limits (wrap around or ring buffer)
         if (hdr.write_offset + offset >= part->size) {
             Serial.println(F("[RawSpool] Flash spool partition full! Wrapping circular buffer to start."));
-            hdr.write_offset = SECTOR_SIZE;
+            hdr.write_offset = SPOOL_START_OFFSET;
         }
 
         // If write crosses sector boundary, erase target sector first
@@ -252,7 +254,7 @@ public:
         }
 
         String json = "[";
-        uint32_t readOffset = SECTOR_SIZE;
+        uint32_t readOffset = SPOOL_START_OFFSET;
         uint32_t count = 0;
         bool first = true;
 
@@ -416,7 +418,7 @@ public:
         hdr.magic = SPOOL_MAGIC_HEADER;
         hdr.version = 1;
         hdr.record_count = 0;
-        hdr.write_offset = SECTOR_SIZE;
+        hdr.write_offset = SPOOL_START_OFFSET;
         hdr.crc32 = 0;
 
         esp_partition_write(part, 0, &hdr, sizeof(hdr));

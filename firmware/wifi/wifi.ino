@@ -1,6 +1,6 @@
 // kreier/wifi - ESP32 Wi-Fi Monitoring Node
 // Arduino IDE Sketch Entry Point
-// Version: 1.0.8
+// Version: 1.1.0
 //
 // Single Unified ESP32 Firmware:
 // Hardware target (T18, T8, DevKit V1, Custom) is dynamically selected
@@ -10,7 +10,7 @@
 // Tools -> Partition Scheme -> "Minimal SPIFFS (Large APPS with OTA)"
 
 #ifndef FIRMWARE_VERSION
-#define FIRMWARE_VERSION "1.0.8"
+#define FIRMWARE_VERSION "1.1.0"
 #endif
 
 #include "../include/app_main.h"
