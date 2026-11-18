@@ -15,6 +15,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.1] - 2026-11-18
+
+### Fixed & Optimized (Firmware)
+- **Bluetooth Scan Heap Exhaustion & OOM Panic Resolution**:
+  - Automatically shuts down the Wi-Fi radio (`WiFi.mode(WIFI_OFF)`) and frees scan memory immediately after the Wi-Fi spectrum survey completes, reclaiming >40 KB of internal DRAM for the Bluedroid BLE/Classic stack.
+  - Added defensive free heap threshold guards in `BluetoothScanner::scanBle` (min 40 KB) and `BluetoothScanner::scanClassic` (min 35 KB) to eliminate fatal `std::bad_alloc` aborts in crowded 2.4 GHz RF environments.
+  - Replaced associative heap containers (`std::map<String, BleDeviceRecord>` and `std::set<String>`) with linear deduplication in `std::vector` and zero-allocation 64-bit integer MAC hashing, eliminating >600 heap allocations and RB-tree node fragmentation per scan.
+  - Strictly capped unique tracked BLE devices in scan phase to 25 records.
+  - Capped RAM accumulation across 2-minute subcycles in powered mode: `_ramSurvey` capped at 60 APs, `_ramBt.ble_devices` capped at 15, and `_ramBt.classic_devices` capped at 10.
+  - Added explicit scoping for Wi-Fi scan results vector in `app_main.h` ensuring deallocation before Bluetooth scanning initiates, and added `shrink_to_fit()` upon 10-minute cycle reset.
+
+### Added & Enhanced (Web Dashboard & Worker Backend)
+- **24-Hour Station Reliability Timeline (48 × 30-Minute Interval Bar)**:
+  - Interactive 48-segment status bar embedded inside each network card below HTTP latency probes with color-coded failure categorization: healthy (green), HTTP probe timeout (purple), DNS resolution timeout (amber), gateway RTT timeout (orange), DHCP lease timeout (red), association failure (charcoal), or idle (gray).
+- **Collapsible Scan Surveys**:
+  - Surrounding 2.4 GHz Spectrum Survey and Previously Detected Networks tables are now collapsible with interactive expand/collapse headers, collapsed by default for streamlined viewing.
+- **Settings & Fleet Management Console**:
+  - Secure administrator suite with HMAC-SHA256 session tokens (`/api/admin/*`) backed by Cloudflare Worker environment secrets.
+  - Dynamic D1 database sizing breakdown across all 13 tables with estimated row counts and storage metrics.
+  - Station administration: modify node descriptions, toggle Canary OTA release tracks, or pin explicit target versions.
+  - Selective historical data cleanup by station and timeframe.
+  - 52-week annual activity heatmap (`.cal-*` namespace to avoid style collisions with 24h spectrum heatmaps).
+
+---
+
 ## [1.1.0] - 2026-11-17
 
 ### Added

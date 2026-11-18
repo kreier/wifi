@@ -1,6 +1,6 @@
 {
   "name": "WIFI Monitor (Update Only)",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "funding_url": "https://github.com/kreier/wifi",
   "new_install_prompt_erase": false,
   "builds": [

@@ -443,6 +443,17 @@ Downloads recent telemetry for analysis or archival into the `data/` repository 
 
 ---
 
+## Administrative APIs (Protected by HMAC Bearer Token)
+
+- `POST /api/admin/login` — Administrator authentication & session issuance
+- `GET /api/admin/verify` — Admin session validation
+- `GET /api/admin/overview` — D1 storage metrics, table row counts, operational span, and yearly activity heatmap (`?year=YYYY&station_id=ID`)
+- `POST /api/admin/station/update` — Update node description, canary OTA release track, and target firmware version
+- `POST /api/admin/station/delete` — Decommission node with optional cascade telemetry purge
+- `POST /api/admin/data/delete` — Timeframe-based raw measurement and survey pruning
+
+---
+
 ## Network Diagnostics & Firewall Monitoring (v0.7.0)
 
 Version `0.7.0` introduces real-time gateway and dual-stack DNS monitoring alongside automated daily security and firewall audits:
