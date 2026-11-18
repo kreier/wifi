@@ -758,6 +758,24 @@ export function renderDashboardHtml(): string {
     .copy-code-btn:hover {
       background: rgba(255, 255, 255, 0.2);
     }
+        .timeframe-btn {
+      padding: 0.22rem 0.65rem;
+      font-size: 0.75rem;
+      font-weight: 600;
+      border: none;
+      background: transparent;
+      color: var(--text-muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .timeframe-btn.active {
+      background: var(--primary);
+      color: #fff;
+    }
+    .timeframe-btn:hover:not(.active) {
+      color: var(--text-main);
+      background: rgba(255, 255, 255, 0.08);
+    }
     .modal-window.large {
       max-width: 1040px;
     }
@@ -968,7 +986,7 @@ export function renderDashboardHtml(): string {
       <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9.44 2.02-12 5.29l1.41 1.42C3.59 7.02 7.55 5.17 12 5.17s8.41 1.85 10.59 4.54L24 8.29C21.44 5.02 16.97 3 12 3zm0 4.33c-3.69 0-7.01 1.5-9.02 3.91l1.42 1.41C6.07 10.97 8.87 9.67 12 9.67s5.93 1.3 7.6 3.01l1.42-1.41C19.01 8.83 15.69 7.33 12 7.33zm0 4.34c-2.4 0-4.57.97-6.04 2.54l1.42 1.42C8.42 14.54 10.09 13.67 12 13.67s3.58.87 4.62 1.96l1.42-1.42C16.57 12.64 14.4 11.67 12 11.67zM12 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
       <div>
         <span class="brand-title">WIFI Monitor</span>
-        <span class="brand-tag">v1.1.1</span>
+        <span class="brand-tag">v1.1.2</span>
       </div>
     </a>
     <div class="header-controls">
@@ -1084,11 +1102,16 @@ export function renderDashboardHtml(): string {
     <div id="channelUtilizationSection" class="chart-container" style="margin-bottom: 2rem;">
       <div class="chart-header" style="flex-wrap: wrap; gap: 0.75rem;">
         <div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 600; margin: 0;">24-Hour Channel Utilization & Spectrum Congestion</h3>
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <h3 style="font-size: 1.1rem; font-weight: 600; margin: 0;">Channel Utilisation &amp; Spectrum Congestion</h3>
             <span id="channelAirtimeBadge" style="background: rgba(16, 185, 129, 0.15); color: #10b981; border: 1px solid rgba(16, 185, 129, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; font-weight: 600;">Promiscuous 2s/ch</span>
+            <div style="display: inline-flex; border: 1px solid var(--card-border); border-radius: 0.375rem; overflow: hidden; background: var(--input-bg); margin-left: 0.4rem;">
+              <button id="btnTf24" class="timeframe-btn active" onclick="setChannelTimeframe(24)">24h</button>
+              <button id="btnTf48" class="timeframe-btn" onclick="setChannelTimeframe(48)">48h</button>
+              <button id="btnTf168" class="timeframe-btn" onclick="setChannelTimeframe(168)">7d</button>
+            </div>
           </div>
-          <span style="font-size: 0.8rem; color: var(--text-muted);">Measured across all 13 channels every 30 minutes with Wi-Fi spectrum scan duration</span>
+          <span style="font-size: 0.8rem; color: var(--text-muted);">Measured across all 13 channels with Wi-Fi spectrum scan duration</span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.85rem; flex-wrap: wrap;">
           <div style="display: flex; align-items: center; gap: 0.4rem;">
@@ -1109,7 +1132,7 @@ export function renderDashboardHtml(): string {
       <!-- Quick KPI Stat Boxes -->
       <div class="metrics-summary" style="grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); margin-bottom: 1rem;">
         <div class="metric-box">
-          <div class="metric-label">24h Avg Airtime</div>
+          <div class="metric-label" id="stat-avg-label">24h Avg Airtime</div>
           <div class="metric-val" id="stat-avg-airtime" style="color: #38bdf8;">—</div>
         </div>
         <div class="metric-box">
@@ -1167,41 +1190,52 @@ export function renderDashboardHtml(): string {
       <!-- 24-Hour Channel Utilization Heatmap Drawer -->
       <div style="margin-top: 0.85rem; border-top: 1px solid var(--card-border); padding-top: 0.85rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleChannelHeatmap()">
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
             <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">24-Hour Spectrum &amp; BLE Heatmap (13 Channels + BLE)</span>
             <span style="font-size: 0.72rem; color: var(--text-muted);">(48 &times; 30-min Intervals, 13 Wi-Fi Channels + Unique BLE Devices)</span>
           </div>
-          <span id="channelHeatmapExpandIcon" style="font-size: 0.8rem; color: var(--text-muted);">▲</span>
+          <div style="display: flex; align-items: center; gap: 0.75rem;">
+            <div style="display: flex; align-items: center; gap: 0.35rem;" onclick="event.stopPropagation()">
+              <label for="heatmapPaletteSelect" style="font-size: 0.72rem; color: var(--text-muted); font-weight: 600;">Scheme:</label>
+              <select id="heatmapPaletteSelect" onchange="changeHeatmapPalette(this.value)" style="padding: 0.2rem 0.45rem; font-size: 0.72rem; border-radius: 0.3rem; background: var(--input-bg); color: var(--text-main); border: 1px solid var(--card-border); outline: none;">
+                <option value="spectrum">Spectrum (Classic)</option>
+                <option value="inferno">Inferno (Heat)</option>
+                <option value="viridis">Viridis (Emerald)</option>
+                <option value="plasma">Plasma (Neon)</option>
+              </select>
+            </div>
+            <span id="channelHeatmapExpandIcon" style="font-size: 0.8rem; color: var(--text-muted);">▲</span>
+          </div>
         </div>
         <div id="channelHeatmapDrawer" style="display: block; margin-top: 0.85rem; overflow-x: auto; overflow-y: hidden;">
           <!-- Heatmap Legend & Hover Info Bar -->
           <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.75rem;">
             <div style="display: inline-flex; align-items: center; gap: 3px; flex-wrap: wrap;">
               <span style="color: var(--text-muted); margin-right: 3px;">Airtime:</span>
-              <span style="display:inline-block; width:12px; height:10px; background:#0f2942; border-radius:2px;" title="&le; 2% (Quiet)"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#0f2942; border-radius:2px;" title="&le; 2% (Quiet)"></span>
               <span style="color:var(--text-muted); margin-right:2px;">&le;2%</span>
-              <span style="display:inline-block; width:12px; height:10px; background:#0284c7; border-radius:2px;" title="2% - 5%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#06b6d4; border-radius:2px;" title="5% - 8%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#0d9488; border-radius:2px;" title="8% - 12%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#10b981; border-radius:2px;" title="12% - 16%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#22c55e; border-radius:2px;" title="16% - 20%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#84cc16; border-radius:2px;" title="20% - 25%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#eab308; border-radius:2px;" title="25% - 30%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#0284c7; border-radius:2px;" title="2% - 5%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#06b6d4; border-radius:2px;" title="5% - 8%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#0d9488; border-radius:2px;" title="8% - 12%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#10b981; border-radius:2px;" title="12% - 16%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#22c55e; border-radius:2px;" title="16% - 20%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#84cc16; border-radius:2px;" title="20% - 25%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#eab308; border-radius:2px;" title="25% - 30%"></span>
               <span style="color:var(--text-muted); margin-left:1px; margin-right:3px;">5–30%</span>
-              <span style="display:inline-block; width:12px; height:10px; background:#f97316; border-radius:2px;" title="30% - 40%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#ef4444; border-radius:2px;" title="40% - 55%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#dc2626; border-radius:2px;" title="55% - 70%"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#d946ef; border-radius:2px;" title="&gt; 70% (Outlier Spike)"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#f97316; border-radius:2px;" title="30% - 40%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#ef4444; border-radius:2px;" title="40% - 55%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#dc2626; border-radius:2px;" title="55% - 70%"></span>
+              <span class="airtime-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#d946ef; border-radius:2px;" title="&gt; 70% (Outlier Spike)"></span>
               <span style="color:#d946ef; font-weight:600; margin-left:2px; margin-right:6px;">&gt;70% Spike</span>
               <span style="display:inline-block; width:1px; height:12px; background:var(--card-border); margin:0 4px;"></span>
               <span style="color: #38bdf8; font-weight: 600; margin-right: 3px;">BLE:</span>
-              <span style="display:inline-block; width:12px; height:10px; background:#0f2942; border-radius:2px;" title="0 devices"></span>
+              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#0f2942; border-radius:2px;" title="0 devices"></span>
               <span style="color:var(--text-muted); margin-right:2px;">0</span>
-              <span style="display:inline-block; width:12px; height:10px; background:#06b6d4; border-radius:2px;" title="1 - 3 devices"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#10b981; border-radius:2px;" title="4 - 8 devices"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#eab308; border-radius:2px;" title="9 - 15 devices"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#f97316; border-radius:2px;" title="16 - 25 devices"></span>
-              <span style="display:inline-block; width:12px; height:10px; background:#d946ef; border-radius:2px;" title="&gt; 25 devices (Dense)"></span>
+              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#06b6d4; border-radius:2px;" title="1 - 3 devices"></span>
+              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#10b981; border-radius:2px;" title="4 - 8 devices"></span>
+              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#eab308; border-radius:2px;" title="9 - 15 devices"></span>
+              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#f97316; border-radius:2px;" title="16 - 25 devices"></span>
+              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#d946ef; border-radius:2px;" title="&gt; 25 devices (Dense)"></span>
               <span style="color:#38bdf8; font-weight:600; margin-left:2px;">&gt;25 Dev</span>
             </div>
           </div>
@@ -1209,6 +1243,38 @@ export function renderDashboardHtml(): string {
           <div id="heatmapHoverInfo" style="color: var(--text-muted); font-family: monospace; font-size: 0.75rem; min-height: 1.5rem; line-height: 1.5; margin-bottom: 0.6rem; padding: 2px 0;">Hover over a cell to inspect metrics</div>
           <!-- Heatmap Container -->
           <div id="channelHeatmapContainer" style="min-width: 760px; padding: 4px 12px 14px 4px;"></div>
+        </div>
+      </div>
+
+      <!-- 7-Day Historical Heatmaps (Collapsed) -->
+      <div style="margin-top: 0.85rem; border-top: 1px solid var(--card-border); padding-top: 0.85rem;">
+        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleWeeklyHeatmap()">
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <span style="font-size: 0.85rem; font-weight: 600; color: var(--text-main);">7-Day Historical Heatmaps (Wi-Fi Bands &amp; Bluetooth)</span>
+            <span style="font-size: 0.72rem; color: var(--text-muted);">(Last 7 Days &times; 48 Timeslots from 0:00 to 24:00 &bull; Wi-Fi Bands &amp; Bluetooth)</span>
+          </div>
+          <span id="weeklyHeatmapExpandIcon" style="font-size: 0.8rem; color: var(--text-muted);">▶</span>
+        </div>
+        <div id="weeklyHeatmapDrawer" style="display: none; margin-top: 0.85rem; overflow-x: auto; overflow-y: hidden;">
+          <!-- 1. All 2.4 GHz Wi-Fi Bands 7-Day Matrix -->
+          <div style="margin-bottom: 1.25rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem; flex-wrap:wrap; gap:0.4rem;">
+              <span style="font-size:0.78rem; font-weight:700; color:var(--text-main); text-transform:uppercase; letter-spacing:0.5px;">All 2.4 GHz Wi-Fi Bands (Peak Airtime %)</span>
+              <span style="font-size:0.72rem; color:var(--text-muted);">7-Day peak channel airtime per 30-min window</span>
+            </div>
+            <div id="weeklyWifiHoverInfo" style="color: var(--text-muted); font-family: monospace; font-size: 0.75rem; min-height: 1.4rem; line-height: 1.4; margin-bottom: 0.4rem;">Hover over a cell to inspect Wi-Fi metrics</div>
+            <div id="weeklyWifiHeatmapContainer" style="min-width: 760px; padding: 4px 12px 10px 4px;"></div>
+          </div>
+
+          <!-- 2. Bluetooth 7-Day Matrix -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem; flex-wrap:wrap; gap:0.4rem;">
+              <span style="font-size:0.78rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.5px;">Bluetooth Device Activity (Unique BLE &amp; Classic Devices)</span>
+              <span style="font-size:0.72rem; color:var(--text-muted);">7-Day unique Bluetooth transmitters detected per 30-min window</span>
+            </div>
+            <div id="weeklyBtHoverInfo" style="color: var(--text-muted); font-family: monospace; font-size: 0.75rem; min-height: 1.4rem; line-height: 1.4; margin-bottom: 0.4rem;">Hover over a cell to inspect Bluetooth metrics</div>
+            <div id="weeklyBtHeatmapContainer" style="min-width: 760px; padding: 4px 12px 10px 4px;"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -1484,7 +1550,7 @@ export function renderDashboardHtml(): string {
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ ESP32 Web Firmware Installer</span>
-          <span class="fw-badge">v1.1.1 Stable</span>
+          <span class="fw-badge">v1.1.2 Stable</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -1912,7 +1978,7 @@ export function renderDashboardHtml(): string {
     <span>|</span>
     <a href="javascript:void(0)" onclick="openSettingsModal()" style="font-weight: 600; color: var(--primary);">⚙️ Settings</a>
     <span>|</span>
-    <a href="https://github.com/kreier/wifi" target="_blank">Repository (kreier/wifi v1.1.1)</a>
+    <a href="https://github.com/kreier/wifi" target="_blank">Repository (kreier/wifi v1.1.2)</a>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -2312,7 +2378,13 @@ export function renderDashboardHtml(): string {
           return;
         }
         const data = await res.json();
-        if (!data.success) return;
+        if (!data.success) {
+          const dbText = document.getElementById("dbTotalSizeText");
+          if (dbText) dbText.innerText = "Error: " + (data.error || "Failed to load metrics");
+          const tbody = document.getElementById("adminStationsTableBody");
+          if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:1.25rem;">Failed to load database overview: ' + escapeHtml(data.error || "Database error") + '</td></tr>';
+          return;
+        }
 
         adminOverviewData = data;
 
@@ -2330,6 +2402,10 @@ export function renderDashboardHtml(): string {
 
       } catch (err) {
         console.error("Failed to load admin overview:", err);
+        const dbText = document.getElementById("dbTotalSizeText");
+        if (dbText) dbText.innerText = "Connection error";
+        const tbody = document.getElementById("adminStationsTableBody");
+        if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:1.25rem;">Could not connect to database endpoint: ' + escapeHtml(err.message || String(err)) + '</td></tr>';
       }
     }
 
@@ -3738,33 +3814,103 @@ export function renderDashboardHtml(): string {
       if (icon) icon.innerText = isHidden ? "▼" : "▶";
     }
 
-    function getAirtimeHeatmapColor(pct) {
-      if (pct === null || pct === undefined || isNaN(pct)) return 'rgba(100, 116, 139, 0.15)';
-      if (pct <= 2) return '#0f2942'; // near idle
-      if (pct <= 5) return '#0284c7'; // 2-5%
-      if (pct <= 8) return '#06b6d4'; // 5-8%
-      if (pct <= 12) return '#0d9488'; // 8-12%
-      if (pct <= 16) return '#10b981'; // 12-16%
-      if (pct <= 20) return '#22c55e'; // 16-20%
-      if (pct <= 25) return '#84cc16'; // 20-25%
-      if (pct <= 30) return '#eab308'; // 25-30%
-      if (pct <= 40) return '#f97316'; // 30-40%
-      if (pct <= 55) return '#ef4444'; // 40-55%
-      if (pct <= 70) return '#dc2626'; // 55-70%
-      return '#d946ef'; // > 70% outlier spike
+    let selectedChannelTimeframe = 24;
+    function setChannelTimeframe(hours) {
+      selectedChannelTimeframe = hours;
+      [24, 48, 168].forEach(function(h) {
+        const btn = document.getElementById("btnTf" + h);
+        if (btn) btn.classList.toggle("active", h === hours);
+      });
+      renderChannelUtilizationSection();
     }
 
-    function getBleHeatmapColor(count) {
+    let currentHeatmapPalette = localStorage.getItem("wifi_heatmap_palette") || "spectrum";
+
+    const HEATMAP_PALETTES = {
+      spectrum: {
+        airtime: ['#0f2942', '#0284c7', '#06b6d4', '#0d9488', '#10b981', '#22c55e', '#84cc16', '#eab308', '#f97316', '#ef4444', '#dc2626', '#d946ef'],
+        ble: ['#0f2942', '#06b6d4', '#10b981', '#eab308', '#f97316', '#d946ef']
+      },
+      inferno: {
+        airtime: ['#160b39', '#280b53', '#420a68', '#65156e', '#86206e', '#a82e5f', '#cb4149', '#ea5834', '#f67d15', '#fba40a', '#f5cf30', '#fcffa4'],
+        ble: ['#160b39', '#420a68', '#86206e', '#ea5834', '#fba40a', '#fcffa4']
+      },
+      viridis: {
+        airtime: ['#2b0135', '#3b0244', '#471164', '#482475', '#3b528b', '#2c728e', '#21918c', '#28ae80', '#5ec962', '#addc30', '#d8e219', '#fde725'],
+        ble: ['#2b0135', '#471164', '#3b528b', '#21918c', '#5ec962', '#fde725']
+      },
+      plasma: {
+        airtime: ['#0d0887', '#310597', '#5402a3', '#7301a8', '#8f0da4', '#ab2494', '#c43c7d', '#d85662', '#e9744a', '#f49435', '#fab829', '#f0f921'],
+        ble: ['#0d0887', '#5402a3', '#8f0da4', '#c43c7d', '#f49435', '#f0f921']
+      }
+    };
+
+    function changeHeatmapPalette(pal) {
+      currentHeatmapPalette = pal || "spectrum";
+      localStorage.setItem("wifi_heatmap_palette", currentHeatmapPalette);
+      const sel = document.getElementById("heatmapPaletteSelect");
+      if (sel) sel.value = currentHeatmapPalette;
+      updateHeatmapLegends(currentHeatmapPalette);
+      renderChannelHeatmap();
+      renderWeeklyHeatmaps();
+    }
+
+    function updateHeatmapLegends(palName) {
+      const pal = HEATMAP_PALETTES[palName || currentHeatmapPalette] || HEATMAP_PALETTES.spectrum;
+      const airSwatches = document.querySelectorAll(".airtime-legend-swatch");
+      airSwatches.forEach(function(sw, idx) {
+        if (pal.airtime[idx]) sw.style.backgroundColor = pal.airtime[idx];
+      });
+      const bleSwatches = document.querySelectorAll(".ble-legend-swatch");
+      bleSwatches.forEach(function(sw, idx) {
+        if (pal.ble[idx]) sw.style.backgroundColor = pal.ble[idx];
+      });
+    }
+
+    function getAirtimeHeatmapColor(pct, palName) {
+      if (pct === null || pct === undefined || isNaN(pct)) return 'rgba(100, 116, 139, 0.15)';
+      const pal = (HEATMAP_PALETTES[palName || currentHeatmapPalette] || HEATMAP_PALETTES.spectrum).airtime;
+      if (pct <= 2) return pal[0];
+      if (pct <= 5) return pal[1];
+      if (pct <= 8) return pal[2];
+      if (pct <= 12) return pal[3];
+      if (pct <= 16) return pal[4];
+      if (pct <= 20) return pal[5];
+      if (pct <= 25) return pal[6];
+      if (pct <= 30) return pal[7];
+      if (pct <= 40) return pal[8];
+      if (pct <= 55) return pal[9];
+      if (pct <= 70) return pal[10];
+      return pal[11];
+    }
+
+    function getBleHeatmapColor(count, palName) {
       if (count === null || count === undefined || isNaN(count)) return 'rgba(100, 116, 139, 0.15)';
-      if (count === 0) return '#0f2942'; // near idle / 0 devices
-      if (count <= 3) return '#06b6d4'; // 1-3 devices
-      if (count <= 8) return '#10b981'; // 4-8 devices
-      if (count <= 15) return '#eab308'; // 9-15 devices
-      if (count <= 25) return '#f97316'; // 16-25 devices
-      return '#d946ef';                 // > 25 devices
+      const pal = (HEATMAP_PALETTES[palName || currentHeatmapPalette] || HEATMAP_PALETTES.spectrum).ble;
+      if (count === 0) return pal[0];
+      if (count <= 3) return pal[1];
+      if (count <= 8) return pal[2];
+      if (count <= 15) return pal[3];
+      if (count <= 25) return pal[4];
+      return pal[5];
+    }
+
+    function toggleWeeklyHeatmap() {
+      const drawer = document.getElementById("weeklyHeatmapDrawer");
+      const icon = document.getElementById("weeklyHeatmapExpandIcon");
+      if (!drawer) return;
+      const isOpen = drawer.style.display !== "none";
+      drawer.style.display = isOpen ? "none" : "block";
+      if (icon) icon.innerText = isOpen ? "▶" : "▼";
+      if (!isOpen) {
+        renderWeeklyHeatmaps();
+      }
     }
 
     function renderChannelHeatmap() {
+      const pSel = document.getElementById("heatmapPaletteSelect");
+      if (pSel && pSel.value !== currentHeatmapPalette) pSel.value = currentHeatmapPalette;
+      updateHeatmapLegends(currentHeatmapPalette);
       const container = document.getElementById("channelHeatmapContainer");
       if (!container || !currentStationData) return;
 
@@ -4025,9 +4171,17 @@ export function renderDashboardHtml(): string {
     function renderChannelUtilizationSection() {
       if (!currentStationData) return;
 
-      const utilHistory = currentStationData.channel_utilization || [];
+      const rawUtil = currentStationData.channel_utilization || [];
+      const nowSec = Math.floor(Date.now() / 1000);
+      const cutoffSec = nowSec - (selectedChannelTimeframe * 3600);
+      const utilHistory = rawUtil.filter(u => u.timestamp >= cutoffSec);
       const latestUtil = currentStationData.latest_channel_utilization || [];
       const latestScanMs = currentStationData.latest_scan_duration_ms;
+
+      const statAvgLabel = document.getElementById("stat-avg-label");
+      if (statAvgLabel) {
+        statAvgLabel.innerText = selectedChannelTimeframe === 24 ? "24h Avg Airtime" : (selectedChannelTimeframe === 48 ? "48h Avg Airtime" : "7d Avg Airtime");
+      }
 
       // 1. KPI Stats
       const statAvgEl = document.getElementById("stat-avg-airtime");
@@ -4112,11 +4266,18 @@ export function renderDashboardHtml(): string {
         const tsSet = new Set();
         utilHistory.forEach(u => tsSet.add(u.timestamp));
         (currentStationData.recent_history || []).forEach(m => {
-          if (m.scan_duration_ms) tsSet.add(m.timestamp);
+          if (m.scan_duration_ms && m.timestamp >= cutoffSec) tsSet.add(m.timestamp);
         });
 
         const sortedTs = Array.from(tsSet).sort((a, b) => a - b);
-        const labels = sortedTs.map(ts => new Date(ts * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+        const labels = sortedTs.map(ts => {
+          const d = new Date(ts * 1000);
+          if (selectedChannelTimeframe <= 24) {
+            return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          } else {
+            return d.toLocaleDateString([], { month: 'numeric', day: 'numeric' }) + ' ' + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          }
+        });
 
         const tsUtilMap = new Map();
         utilHistory.forEach(u => {
@@ -4356,8 +4517,327 @@ export function renderDashboardHtml(): string {
         }
       }
 
-      // Render 24-Hour Channel Utilization Heatmap
+      // Render 24-Hour Channel Utilization Heatmap & 7-Day Heatmaps
       renderChannelHeatmap();
+      renderWeeklyHeatmaps();
+    }
+
+    
+    function renderWeeklyHeatmaps() {
+      const wifiContainer = document.getElementById("weeklyWifiHeatmapContainer");
+      const btContainer = document.getElementById("weeklyBtHeatmapContainer");
+      if (!wifiContainer || !btContainer || !currentStationData) return;
+
+      wifiContainer.innerHTML = "";
+      btContainer.innerHTML = "";
+
+      const rawUtil = currentStationData.channel_utilization || [];
+      const rawBt = currentStationData.bluetooth_history || [];
+      const daily30 = currentStationData.daily_30min_summaries || [];
+
+      // Generate 7 days chronologically: 6 days ago -> Today
+      const days = [];
+      const now = new Date();
+      for (let i = 6; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i, 0, 0, 0, 0);
+        const dayLabel = (i === 0) ? "Today" : d.toLocaleDateString([], { weekday: 'short' });
+        const dateStr = d.toLocaleDateString([], { month: 'numeric', day: 'numeric' });
+        const ymd = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, '0') + "-" + String(d.getDate()).padStart(2, '0');
+        days.push({
+          index: 6 - i,
+          dayLabel: dayLabel + " " + dateStr,
+          shortName: dayLabel,
+          ymd: ymd,
+          startTs: Math.floor(d.getTime() / 1000),
+          endTs: Math.floor(d.getTime() / 1000) + 86400
+        });
+      }
+
+      // Matrix: 7 rows x 48 slots
+      const wifiMatrix = Array.from({ length: 7 }, () => 
+        Array.from({ length: 48 }, () => ({
+          count: 0,
+          peakAirtime: 0,
+          peakChannel: 0,
+          sumAirtime: 0,
+          activeChannels: new Set(),
+          dataFrames: 0,
+          mgmtFrames: 0,
+          ctrlFrames: 0,
+          transmitters: 0
+        }))
+      );
+
+      const btMatrix = Array.from({ length: 7 }, () => 
+        Array.from({ length: 48 }, () => ({
+          count: 0,
+          maxUnique: 0,
+          sumUnique: 0,
+          totalMacs: 0,
+          classicTotal: 0,
+          randomMacs: 0,
+          publicMacs: 0
+        }))
+      );
+
+      // Populate Wi-Fi from channel_utilization
+      rawUtil.forEach(u => {
+        if (!u.timestamp) return;
+        for (let dIdx = 0; dIdx < 7; dIdx++) {
+          const d = days[dIdx];
+          if (u.timestamp >= d.startTs && u.timestamp < d.endTs) {
+            const secInDay = u.timestamp - d.startTs;
+            const slotIdx = Math.min(47, Math.max(0, Math.floor(secInDay / 1800)));
+            const cell = wifiMatrix[dIdx][slotIdx];
+            cell.count++;
+            const air = u.airtime_pct || 0;
+            cell.sumAirtime += air;
+            if (air > cell.peakAirtime) {
+              cell.peakAirtime = air;
+              cell.peakChannel = u.channel;
+            }
+            if (u.channel) cell.activeChannels.add(u.channel);
+            cell.dataFrames += (u.data_frames || 0);
+            cell.mgmtFrames += (u.mgmt_frames || 0);
+            cell.ctrlFrames += (u.ctrl_frames || 0);
+            cell.transmitters = Math.max(cell.transmitters, u.unique_transmitters || 0);
+            break;
+          }
+        }
+      });
+
+      // Populate Bluetooth from bluetooth_history
+      rawBt.forEach(b => {
+        if (!b.timestamp) return;
+        for (let dIdx = 0; dIdx < 7; dIdx++) {
+          const d = days[dIdx];
+          if (b.timestamp >= d.startTs && b.timestamp < d.endTs) {
+            const secInDay = b.timestamp - d.startTs;
+            const slotIdx = Math.min(47, Math.max(0, Math.floor(secInDay / 1800)));
+            const cell = btMatrix[dIdx][slotIdx];
+            cell.count++;
+            const uq = b.ble_unique_devices || 0;
+            const classic = b.classic_total || 0;
+            const total = uq + classic;
+            cell.sumUnique += total;
+            cell.maxUnique = Math.max(cell.maxUnique, total);
+            cell.totalMacs = Math.max(cell.totalMacs, b.ble_total_macs || 0);
+            cell.classicTotal = Math.max(cell.classicTotal, classic);
+            cell.randomMacs = Math.max(cell.randomMacs, b.ble_random_macs || 0);
+            cell.publicMacs = Math.max(cell.publicMacs, b.ble_public_macs || 0);
+            break;
+          }
+        }
+      });
+
+      // Fill in latest_bluetooth for today
+      if (currentStationData.latest_bluetooth && currentStationData.latest_bluetooth.timestamp) {
+        const lb = currentStationData.latest_bluetooth;
+        const today = days[6];
+        if (lb.timestamp >= today.startTs && lb.timestamp < today.endTs) {
+          const slotIdx = Math.min(47, Math.max(0, Math.floor((lb.timestamp - today.startTs) / 1800)));
+          const cell = btMatrix[6][slotIdx];
+          if (cell.count === 0) {
+            cell.count = 1;
+            const uq = lb.ble_unique_devices || 0;
+            const classic = lb.classic_total || 0;
+            cell.maxUnique = uq + classic;
+            cell.classicTotal = classic;
+            cell.totalMacs = lb.ble_total_macs || 0;
+            cell.randomMacs = lb.ble_random_macs || 0;
+            cell.publicMacs = lb.ble_public_macs || 0;
+          }
+        }
+      }
+
+      // Fill from daily_30min_summaries
+      daily30.forEach(s => {
+        for (let dIdx = 0; dIdx < 7; dIdx++) {
+          if (s.date === days[dIdx].ymd && s.interval_index >= 0 && s.interval_index < 48) {
+            const wCell = wifiMatrix[dIdx][s.interval_index];
+            if (wCell.count === 0 && s.channel_max_airtime) {
+              try {
+                const arr = JSON.parse(s.channel_max_airtime);
+                if (Array.isArray(arr) && arr.length > 0) {
+                  let maxA = 0;
+                  let maxCh = 1;
+                  arr.forEach((val, idx) => {
+                    const num = Number(val) || 0;
+                    if (num > maxA) {
+                      maxA = num;
+                      maxCh = idx + 1;
+                    }
+                  });
+                  wCell.count = 1;
+                  wCell.peakAirtime = maxA;
+                  wCell.peakChannel = maxCh;
+                  wCell.sumAirtime = maxA;
+                }
+              } catch(e) {}
+            }
+            const bCell = btMatrix[dIdx][s.interval_index];
+            if (bCell.count === 0 && (s.ble_max_unique || s.classic_max)) {
+              bCell.count = 1;
+              bCell.maxUnique = (s.ble_max_unique || 0) + (s.classic_max || 0);
+              bCell.classicTotal = s.classic_max || 0;
+            }
+            break;
+          }
+        }
+      });
+
+      function createTimeHeaderRow() {
+        const headerRow = document.createElement("div");
+        headerRow.className = "heatmap-row";
+        const spacer = document.createElement("div");
+        spacer.className = "heatmap-row-label";
+        spacer.style.width = "78px";
+        spacer.style.fontSize = "0.65rem";
+        spacer.innerText = "Timeslot";
+        headerRow.appendChild(spacer);
+
+        const headerCols = document.createElement("div");
+        headerCols.className = "heatmap-header-wrap";
+        for (let i = 0; i < 48; i++) {
+          const col = document.createElement("div");
+          col.className = "heatmap-header-col";
+          const h = Math.floor(i / 2);
+          const m = (i % 2 === 0) ? '00' : '30';
+          if (i % 4 === 0) {
+            col.innerText = String(h).padStart(2, '0') + ':' + m;
+          } else if (i % 2 === 0) {
+            col.innerHTML = "&middot;";
+          }
+          headerCols.appendChild(col);
+        }
+        headerRow.appendChild(headerCols);
+        return headerRow;
+      }
+
+      // --- 1. Wi-Fi Spectrum Heatmap ---
+      wifiContainer.appendChild(createTimeHeaderRow());
+      const wifiHover = document.getElementById("weeklyWifiHoverInfo");
+
+      for (let dIdx = 0; dIdx < 7; dIdx++) {
+        const d = days[dIdx];
+        const row = document.createElement("div");
+        row.className = "heatmap-row";
+
+        const label = document.createElement("div");
+        label.className = "heatmap-row-label";
+        label.style.width = "78px";
+        label.style.fontSize = "0.68rem";
+        label.style.fontWeight = (dIdx === 6) ? "700" : "500";
+        label.style.color = (dIdx === 6) ? "var(--primary)" : "var(--text-muted)";
+        label.innerText = d.dayLabel;
+        row.appendChild(label);
+
+        const cellsWrap = document.createElement("div");
+        cellsWrap.className = "heatmap-cells-wrap";
+
+        for (let slot = 0; slot < 48; slot++) {
+          const cell = document.createElement("div");
+          cell.className = "heatmap-cell";
+          const cellData = wifiMatrix[dIdx][slot];
+
+          const startH = String(Math.floor(slot / 2)).padStart(2, '0');
+          const startM = (slot % 2 === 0) ? '00' : '30';
+          const endH = String(Math.floor((slot + 1) / 2)).padStart(2, '0');
+          const endM = ((slot + 1) % 2 === 0) ? '00' : '30';
+          const timeRange = startH + ':' + startM + ' – ' + endH + ':' + endM;
+
+          if (cellData.count > 0) {
+            const color = getAirtimeHeatmapColor(cellData.peakAirtime, currentHeatmapPalette);
+            cell.style.background = color;
+            const avgAir = cellData.sumAirtime / cellData.count;
+            cell.title = d.dayLabel + ' (' + timeRange + '): ' + cellData.peakAirtime.toFixed(1) + '% peak (Ch ' + (cellData.peakChannel || 'all') + '), ' + avgAir.toFixed(1) + '% avg';
+
+            cell.addEventListener("mouseenter", function() {
+              if (wifiHover) {
+                wifiHover.innerHTML = '<span style="color:#fff; font-weight:600;">' + d.dayLabel + '</span> &bull; <span style="color:var(--primary);">' + timeRange + '</span> &bull; Peak: <span style="color:' + color + '; font-weight:700;">' + cellData.peakAirtime.toFixed(1) + '% (Ch ' + (cellData.peakChannel || 'all') + ')</span> | Avg: ' + avgAir.toFixed(1) + '% | Active Ch: ' + cellData.activeChannels.size + ' | Tx: ' + cellData.transmitters;
+              }
+            });
+          } else {
+            cell.style.background = "rgba(100, 116, 139, 0.12)";
+            cell.title = d.dayLabel + ' (' + timeRange + '): No scan data';
+            cell.addEventListener("mouseenter", function() {
+              if (wifiHover) {
+                wifiHover.innerHTML = '<span style="color:var(--text-muted);">' + d.dayLabel + ' &bull; ' + timeRange + ' &bull; No Wi-Fi scan data recorded</span>';
+              }
+            });
+          }
+
+          cell.addEventListener("mouseleave", function() {
+            if (wifiHover) wifiHover.innerText = "Hover over a cell to inspect Wi-Fi metrics";
+          });
+
+          cellsWrap.appendChild(cell);
+        }
+        row.appendChild(cellsWrap);
+        wifiContainer.appendChild(row);
+      }
+
+      // --- 2. Bluetooth Activity Heatmap ---
+      btContainer.appendChild(createTimeHeaderRow());
+      const btHover = document.getElementById("weeklyBtHoverInfo");
+
+      for (let dIdx = 0; dIdx < 7; dIdx++) {
+        const d = days[dIdx];
+        const row = document.createElement("div");
+        row.className = "heatmap-row";
+
+        const label = document.createElement("div");
+        label.className = "heatmap-row-label";
+        label.style.width = "78px";
+        label.style.fontSize = "0.68rem";
+        label.style.fontWeight = (dIdx === 6) ? "700" : "500";
+        label.style.color = (dIdx === 6) ? "#38bdf8" : "var(--text-muted)";
+        label.innerText = d.dayLabel;
+        row.appendChild(label);
+
+        const cellsWrap = document.createElement("div");
+        cellsWrap.className = "heatmap-cells-wrap";
+
+        for (let slot = 0; slot < 48; slot++) {
+          const cell = document.createElement("div");
+          cell.className = "heatmap-cell";
+          const cellData = btMatrix[dIdx][slot];
+
+          const startH = String(Math.floor(slot / 2)).padStart(2, '0');
+          const startM = (slot % 2 === 0) ? '00' : '30';
+          const endH = String(Math.floor((slot + 1) / 2)).padStart(2, '0');
+          const endM = ((slot + 1) % 2 === 0) ? '00' : '30';
+          const timeRange = startH + ':' + startM + ' – ' + endH + ':' + endM;
+
+          if (cellData.count > 0 && cellData.maxUnique > 0) {
+            const color = getBleHeatmapColor(cellData.maxUnique, currentHeatmapPalette);
+            cell.style.background = color;
+            cell.title = d.dayLabel + ' (' + timeRange + '): ' + cellData.maxUnique + ' unique devices (' + cellData.classicTotal + ' Classic)';
+
+            cell.addEventListener("mouseenter", function() {
+              if (btHover) {
+                btHover.innerHTML = '<span style="color:#fff; font-weight:600;">' + d.dayLabel + '</span> &bull; <span style="color:#38bdf8;">' + timeRange + '</span> &bull; Devices: <span style="color:' + color + '; font-weight:700;">' + cellData.maxUnique + '</span> | Classic: ' + cellData.classicTotal + ' | MACs: ' + cellData.totalMacs;
+              }
+            });
+          } else {
+            cell.style.background = "rgba(100, 116, 139, 0.12)";
+            cell.title = d.dayLabel + ' (' + timeRange + '): 0 devices or no scan';
+            cell.addEventListener("mouseenter", function() {
+              if (btHover) {
+                btHover.innerHTML = '<span style="color:var(--text-muted);">' + d.dayLabel + ' &bull; ' + timeRange + ' &bull; No active devices detected</span>';
+              }
+            });
+          }
+
+          cell.addEventListener("mouseleave", function() {
+            if (btHover) btHover.innerText = "Hover over a cell to inspect Bluetooth metrics";
+          });
+
+          cellsWrap.appendChild(cell);
+        }
+        row.appendChild(cellsWrap);
+        btContainer.appendChild(row);
+      }
     }
 
     function voltageToPercentage(mv) {

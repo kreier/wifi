@@ -15,6 +15,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.2] - 2026-11-19
+
+### Added & Enhanced (Web Dashboard & Worker Backend)
+- **Timeframe Selector for Channel Utilisation**:
+  - Renamed section to **Channel Utilisation & Spectrum Congestion**.
+  - Added timeframe selector pill buttons (`24h`, `48h`, `7d`) filtering measurement history to user-selected duration and formatting X-axis timestamps appropriately (`HH:MM` for 24h, `MM/DD HH:MM` for 48h/7d).
+- **7-Day Historical Heatmaps (Wi-Fi Bands & Bluetooth)**:
+  - Added collapsible drawer under the main heatmap for the last 7 days partitioned into 48 discrete 30-minute intervals (00:00 to 24:00).
+  - Displays two distinct 7x48 heatmaps: **All Wi-Fi Bands** (peak/average airtime %) and **Bluetooth** (unique detected BLE + Classic devices).
+  - Interactive cell inspection showing exact date, 30-minute time window, and metrics on hover/click.
+- **Dynamic Intensity Color Schemes**:
+  - Added heatmap palette selector supporting 4 distinct color schemes:
+    - **Spectrum** (Emerald / Amber / Red-Violet / Indigo)
+    - **Inferno** (Black / Violet / Warm Orange / Yellow)
+    - **Viridis** (Purple / Teal / Vibrant Green / Yellow)
+    - **Plasma** (Navy / Magenta / Orange / Bright Yellow)
+  - Color palettes dynamically update both 24h/multi-day utilization heatmaps, weekly summary heatmaps, and their respective legend swatches, persisting user choice to `localStorage`.
+- **Database & Fleet Reliability**:
+  - Applied migration `0011_daily_30min_summaries_and_diagnostics_history.sql` to remote D1 `wifi-mon-db` creating `daily_30min_summaries`.
+  - Added defensive table querying and structured error messaging to `/api/admin/overview` and frontend admin loader to prevent UI hanging on database errors.
+  - Extended API retention query for channel utilization and Bluetooth metrics from 24 hours to 168 hours (7 days).
+
+---
+
 ## [1.1.1] - 2026-11-18
 
 ### Fixed & Optimized (Firmware)

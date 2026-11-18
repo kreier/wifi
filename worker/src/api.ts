@@ -112,14 +112,15 @@ export async function handleApiStationDetail(stationId: string, _request: Reques
   const recentMeasurements = await db.getRecentMeasurements(stationId, 1000); // 24-48h across all monitored SSIDs (144 samples/day per SSID)
   const dailySummaries = await db.getDailySummaries(stationId, 30);
   const diagnostics = await db.getLatestDiagnostics(stationId);
-  const channelUtilization = await db.getRecentChannelUtilization(stationId, 24);
+  const channelUtilization = await db.getRecentChannelUtilization(stationId, 168); // 7-day spectrum congestion history
   const latestChannelUtilization = await db.getLatestChannelUtilization(stationId);
   const latestScanDuration = await db.getLatestScanDuration(stationId);
   const thirtyDaysAgo = now - (30 * 86400);
   const batteryHistory = await db.getBatteryHistory(stationId, thirtyDaysAgo);
   const latestBluetooth = await db.getLatestBluetooth(stationId);
-  const bluetoothHistory = await db.getRecentBluetooth(stationId, 24);
+  const bluetoothHistory = await db.getRecentBluetooth(stationId, 168); // 7-day Bluetooth history
   const recentBluetoothDevices = await db.getRecentBluetoothDevices(stationId, 24);
+  const daily30MinSummaries = await db.getDaily30MinSummaries(stationId, 7);
 
   const overviewPayload = JSON.stringify({
     station: publicMeta,
@@ -128,6 +129,7 @@ export async function handleApiStationDetail(stationId: string, _request: Reques
     inactive_survey: inactiveSurvey,
     recent_history: recentMeasurements,
     daily_summaries: dailySummaries,
+    daily_30min_summaries: daily30MinSummaries,
     diagnostics: diagnostics,
     channel_utilization: channelUtilization,
     latest_channel_utilization: latestChannelUtilization,

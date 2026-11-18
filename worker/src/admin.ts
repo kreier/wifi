@@ -155,65 +155,70 @@ export async function handleAdminApi(subPath: string, request: Request, env: Env
 
   // 4. Database & Fleet Overview Endpoint
   if (subPath === "overview" && request.method === "GET") {
-    const url = new URL(request.url);
-    const currentYear = new Date().getUTCFullYear();
-    const year = parseInt(url.searchParams.get("year") || `${currentYear}`, 10) || currentYear;
-    const stationId = url.searchParams.get("station_id") || "all";
+    try {
+      const url = new URL(request.url);
+      const currentYear = new Date().getUTCFullYear();
+      const year = parseInt(url.searchParams.get("year") || `${currentYear}`, 10) || currentYear;
+      const stationId = url.searchParams.get("station_id") || "all";
 
-    const [tableStats, stationStats, yearlyActivity] = await Promise.all([
-      db.getTableStats(),
-      db.getStationStats(),
-      db.getYearlyActivity(year, stationId)
-    ]);
+      const [tableStats, stationStats, yearlyActivity] = await Promise.all([
+        db.getTableStats(),
+        db.getStationStats(),
+        db.getYearlyActivity(year, stationId)
+      ]);
 
-    // Calculate database totals
-    const totalBytes = tableStats.reduce((acc, t) => acc + t.bytes_estimate, 0);
-    const totalRows = tableStats.reduce((acc, t) => acc + t.count, 0);
+      // Calculate database totals
+      const totalBytes = tableStats.reduce((acc, t) => acc + t.bytes_estimate, 0);
+      const totalRows = tableStats.reduce((acc, t) => acc + t.count, 0);
 
-    // Calculate fleet collection timeframes
-    let fleetMinTs: number | null = null;
-    let fleetMaxTs: number | null = null;
-    let totalMeasurements = 0;
+      // Calculate fleet collection timeframes
+      let fleetMinTs: number | null = null;
+      let fleetMaxTs: number | null = null;
+      let totalMeasurements = 0;
 
-    stationStats.forEach(st => {
-      if (st.min_timestamp && (fleetMinTs === null || st.min_timestamp < fleetMinTs)) {
-        fleetMinTs = st.min_timestamp;
-      }
-      if (st.max_timestamp && (fleetMaxTs === null || st.max_timestamp > fleetMaxTs)) {
-        fleetMaxTs = st.max_timestamp;
-      }
-      totalMeasurements += st.measurement_count || 0;
-    });
+      stationStats.forEach(st => {
+        if (st.min_timestamp && (fleetMinTs === null || st.min_timestamp < fleetMinTs)) {
+          fleetMinTs = st.min_timestamp;
+        }
+        if (st.max_timestamp && (fleetMaxTs === null || st.max_timestamp > fleetMaxTs)) {
+          fleetMaxTs = st.max_timestamp;
+        }
+        totalMeasurements += st.measurement_count || 0;
+      });
 
-    return jsonResponse({
-      success: true,
-      year,
-      selected_station: stationId,
-      database: {
-        name: "wifi-mon-db",
-        total_estimated_bytes: totalBytes,
-        total_estimated_formatted: totalBytes >= 1048576 
-          ? (totalBytes / 1048576).toFixed(2) + " MB" 
-          : (totalBytes / 1024).toFixed(1) + " KB",
-        total_rows: totalRows,
-        tables: tableStats.map(t => ({
-          ...t,
-          size_formatted: t.bytes_estimate >= 1048576 
-            ? (t.bytes_estimate / 1048576).toFixed(2) + " MB" 
-            : (t.bytes_estimate / 1024).toFixed(1) + " KB",
-          percent_of_total: totalBytes > 0 ? ((t.bytes_estimate / totalBytes) * 100).toFixed(1) : "0.0"
-        }))
-      },
-      fleet_summary: {
-        total_stations: stationStats.length,
-        total_measurements: totalMeasurements,
-        earliest_timestamp: fleetMinTs,
-        latest_timestamp: fleetMaxTs,
-        operating_days: fleetMinTs && fleetMaxTs ? Math.ceil((fleetMaxTs - fleetMinTs) / 86400) : 0
-      },
-      stations: stationStats,
-      yearly_activity: yearlyActivity
-    });
+      return jsonResponse({
+        success: true,
+        year,
+        selected_station: stationId,
+        database: {
+          name: "wifi-mon-db",
+          total_estimated_bytes: totalBytes,
+          total_estimated_formatted: totalBytes >= 1048576 
+            ? (totalBytes / 1048576).toFixed(2) + " MB" 
+            : (totalBytes / 1024).toFixed(1) + " KB",
+          total_rows: totalRows,
+          tables: tableStats.map(t => ({
+            ...t,
+            size_formatted: t.bytes_estimate >= 1048576 
+              ? (t.bytes_estimate / 1048576).toFixed(2) + " MB" 
+              : (t.bytes_estimate / 1024).toFixed(1) + " KB",
+            percent_of_total: totalBytes > 0 ? ((t.bytes_estimate / totalBytes) * 100).toFixed(1) : "0.0"
+          }))
+        },
+        fleet_summary: {
+          total_stations: stationStats.length,
+          total_measurements: totalMeasurements,
+          earliest_timestamp: fleetMinTs,
+          latest_timestamp: fleetMaxTs,
+          operating_days: fleetMinTs && fleetMaxTs ? Math.ceil((fleetMaxTs - fleetMinTs) / 86400) : 0
+        },
+        stations: stationStats,
+        yearly_activity: yearlyActivity
+      });
+    } catch (e: any) {
+      console.error("[Admin Overview Error]:", e);
+      return jsonResponse({ error: e.message || "Failed to load database overview" }, 500);
+    }
   }
 
   // 5. Update Station Configuration

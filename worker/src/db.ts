@@ -953,6 +953,20 @@ export class Database {
     }
   }
 
+  async getDaily30MinSummaries(stationId: string, days: number = 7): Promise<any[]> {
+    const cutoffTs = Math.floor(Date.now() / 1000) - (days * 86400);
+    try {
+      const res = await this.db.prepare(`
+        SELECT * FROM daily_30min_summaries
+        WHERE station_id = ? AND start_timestamp >= ?
+        ORDER BY date ASC, interval_index ASC
+      `).bind(stationId, cutoffTs).all();
+      return res.results || [];
+    } catch {
+      return [];
+    }
+  }
+
   // ==========================================
   // Fleet Admin & Settings Methods
   // ==========================================
@@ -974,20 +988,35 @@ export class Database {
       { table: "stations", avgBytes: 350, desc: "Fleet registered edge devices & tokens" },
     ];
 
-    const statements = tableMeta.map(t => 
-      this.db.prepare(`SELECT count(*) as cnt FROM ${t.table}`)
-    );
+    try {
+      const statements = tableMeta.map(t => 
+        this.db.prepare(`SELECT count(*) as cnt FROM ${t.table}`)
+      );
 
-    const results = await this.db.batch(statements);
-    return tableMeta.map((t, idx) => {
-      const count = (results[idx].results?.[0] as any)?.cnt ?? 0;
-      return {
-        table: t.table,
-        count: count,
-        bytes_estimate: count * t.avgBytes,
-        description: t.desc
-      };
-    });
+      const results = await this.db.batch(statements);
+      return tableMeta.map((t, idx) => {
+        const count = (results[idx]?.results?.[0] as any)?.cnt ?? 0;
+        return {
+          table: t.table,
+          count: count,
+          bytes_estimate: count * t.avgBytes,
+          description: t.desc
+        };
+      });
+    } catch (err) {
+      console.error("[Database] Batch getTableStats failed, trying individually:", err);
+      const stats = [];
+      for (const t of tableMeta) {
+        try {
+          const r = await this.db.prepare(`SELECT count(*) as cnt FROM ${t.table}`).first<{ cnt: number }>();
+          const count = r?.cnt ?? 0;
+          stats.push({ table: t.table, count, bytes_estimate: count * t.avgBytes, description: t.desc });
+        } catch {
+          stats.push({ table: t.table, count: 0, bytes_estimate: 0, description: t.desc });
+        }
+      }
+      return stats;
+    }
   }
 
   async getStationStats(): Promise<Array<any>> {
