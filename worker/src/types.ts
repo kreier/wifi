@@ -3,6 +3,7 @@ export interface Env {
   MASTER_PHRASE: string;
   ENVIRONMENT?: string;
   STABLE_VERSION?: string;
+  CANARY_VERSION?: string;
   OTA_BUCKET?: R2Bucket;
   ADMIN_USERNAME?: string;
   ADMIN_PASSWORD?: string;
@@ -271,6 +272,7 @@ export interface TelemetryCyclePayload {
   battery_mv?: number;
   board_type?: string;
   firmware_version?: string;
+  is_canary?: boolean;
   networks?: NetworkPayload[];
   scan_survey?: SurveyPayload[];
   diagnostics?: NetworkDiagnosticsPayload | NetworkDiagnosticsPayload[];

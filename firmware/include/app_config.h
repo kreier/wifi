@@ -69,6 +69,7 @@ public:
         strlcpy(config.backup_ssid, bkpSsid.c_str(), sizeof(config.backup_ssid));
         strlcpy(config.backup_pass, bkpPass.c_str(), sizeof(config.backup_pass));
         config.is_configured = prefs.getBool("is_cfg", (strlen(config.station_id) > 0 && config.network_count > 0));
+        config.is_canary = prefs.getBool("is_canary", false);
         prefs.end();
 
         Serial.printf("[Config] Loaded station '%s' (%s) with %d networks configured from NVS\n",
@@ -115,6 +116,7 @@ public:
         prefs.putBool("bkp_en", config.backup_enabled);
         prefs.putString("bkp_ssid", config.backup_ssid);
         prefs.putString("bkp_pass", config.backup_pass);
+        prefs.putBool("is_canary", config.is_canary);
         prefs.putBool("is_cfg", config.is_configured);
         prefs.end();
 
@@ -167,5 +169,26 @@ public:
             prefs.end();
             Serial.println(F("[NVS] Cleared stored device token"));
         }
+    }
+
+    bool setCanaryTrack(bool isCanary) {
+        Preferences prefs;
+        if (!prefs.begin(NVS_NAMESPACE, false)) {
+            return false;
+        }
+        size_t written = prefs.putBool("is_canary", isCanary);
+        prefs.end();
+        Serial.printf("[Config] Canary track %s in NVS\n", isCanary ? "ENABLED" : "DISABLED");
+        return written > 0;
+    }
+
+    bool isCanaryTrack() {
+        Preferences prefs;
+        if (!prefs.begin(NVS_NAMESPACE, true)) {
+            return false;
+        }
+        bool canary = prefs.getBool("is_canary", false);
+        prefs.end();
+        return canary;
     }
 };

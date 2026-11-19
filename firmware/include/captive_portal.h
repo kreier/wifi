@@ -264,6 +264,19 @@ private:
         html += F("' placeholder='Worker MASTER_PHRASE for token provisioning'>"
                   "<button type='button' class='toggle-btn' onclick='togglePwd(\"master_phrase\")'>Show</button></div></div>");
 
+        // Release Channel / Canary
+        html += F("<div class='section-title'>Firmware Release Channel</div>");
+        html += F("<div class='field' style='display:flex;align-items:flex-start;gap:0.75rem;margin-top:0.5rem;'>"
+                  "<input type='checkbox' id='is_canary' name='is_canary' value='1'");
+        if (config.is_canary) {
+            html += F(" checked");
+        }
+        html += F(" style='width:1.25rem;min-width:1.25rem;height:1.25rem;accent-color:var(--primary);cursor:pointer;margin-top:0.2rem;'>"
+                  "<div><label for='is_canary' style='cursor:pointer;margin-bottom:0.15rem;font-weight:600;'>Canary / Beta Release Channel</label>"
+                  "<span style='color:var(--muted);font-size:0.75rem;line-height:1.3;display:block;'>"
+                  "Enroll this device to receive experimental and pre-release canary firmware builds when available."
+                  "</span></div></div>");
+
         // Submit Button & JavaScript
         html += F("<button type='submit'>Save and Start Monitoring</button></form></div>"
                   "<script>"
@@ -343,6 +356,9 @@ private:
         if (bkpPass.length() == 0 && !_server.hasArg("bkp_pass")) bkpPass = "12345678";
         strlcpy(config.backup_ssid, bkpSsid.c_str(), sizeof(config.backup_ssid));
         strlcpy(config.backup_pass, bkpPass.c_str(), sizeof(config.backup_pass));
+
+        // Canary Release Channel
+        config.is_canary = _server.hasArg("is_canary");
 
         // Networks
         config.network_count = 0;

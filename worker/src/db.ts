@@ -280,7 +280,7 @@ export class Database {
 
   async listStations(): Promise<StationRecord[]> {
     const result = await this.db
-      .prepare("SELECT station_id, description, created_at, last_seen, firmware_version, board_type, battery_mv FROM stations ORDER BY last_seen DESC")
+      .prepare("SELECT station_id, description, created_at, last_seen, firmware_version, board_type, battery_mv, is_canary, target_version FROM stations ORDER BY last_seen DESC")
       .all<StationRecord>();
     return result.results;
   }

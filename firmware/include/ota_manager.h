@@ -7,21 +7,26 @@
 #include <WiFiClientSecure.h>
 #include <ArduinoJson.h>
 #include "app_state.h"
+#include "app_config.h"
 
 class OtaManager {
 public:
     static bool checkForUpdate(const String &workerUrl, const String &stationId,
-                              const String &currentVersion, const HardwareProfile &hw) {
+                              const String &currentVersion, const HardwareProfile &hw,
+                              bool *pIsCanary = nullptr, AppConfigManager *configMgr = nullptr) {
         if (WiFi.status() != WL_CONNECTED) {
             Serial.println(F("[OTA] Cannot check for updates: WiFi not connected"));
             return false;
         }
 
+        bool isCanaryLocal = pIsCanary ? *pIsCanary : false;
+
         String checkEndpoint = workerUrl;
         if (checkEndpoint.endsWith("/")) checkEndpoint.remove(checkEndpoint.length() - 1);
         checkEndpoint += "/api/ota?station_id=" + stationId +
                          "&version=" + currentVersion +
-                         "&board=" + String(hw.board_name);
+                         "&board=" + String(hw.board_name) +
+                         "&canary=" + String(isCanaryLocal ? "1" : "0");
 
         Serial.printf("[OTA] Checking for firmware updates at: %s\n", checkEndpoint.c_str());
 
@@ -56,12 +61,36 @@ public:
                 return false;
             }
 
+            // Sync canary track setting from server
+            if (doc.containsKey("is_canary")) {
+                bool serverCanary = doc["is_canary"].as<bool>();
+                if (pIsCanary && *pIsCanary != serverCanary) {
+                    Serial.printf("[OTA] Updating canary track setting from server: %s -> %s\n",
+                                  *pIsCanary ? "true" : "false", serverCanary ? "true" : "false");
+                    *pIsCanary = serverCanary;
+                    if (configMgr) {
+                        configMgr->setCanaryTrack(serverCanary);
+                    }
+                }
+            }
+
             bool updateAvailable = doc["update_available"] | false;
             const char *targetVersion = doc["target_version"] | "";
             const char *binUrl = doc["url"] | "";
+            const char *track = doc["track"] | "";
             bool allowDowngrade = doc["allow_downgrade"] | false;
 
             if (updateAvailable && strlen(binUrl) > 0) {
+                bool isCanaryBuild = (strcmp(track, "canary") == 0) ||
+                                     (strstr(targetVersion, "canary") != nullptr) ||
+                                     (strstr(targetVersion, "beta") != nullptr);
+                bool canReceiveCanary = pIsCanary ? *pIsCanary : false;
+
+                if (isCanaryBuild && !canReceiveCanary) {
+                    Serial.printf("[OTA] REJECTED: Firmware '%s' is on canary track, but device is not enrolled in canary.\n", targetVersion);
+                    return false;
+                }
+
                 // Safeguard: Never accept an automatic downgrade or equal version
                 if (!allowDowngrade && compareSemVer(String(targetVersion), currentVersion) <= 0) {
                     Serial.printf("[OTA] Ignoring downgrade/same version offer (Target: %s <= Current: %s)\n",
@@ -70,7 +99,7 @@ public:
                 }
 
                 Serial.println(F("\n=========================================="));
-                Serial.printf(" [OTA] UPDATE FOUND! Target: %s\n", targetVersion);
+                Serial.printf(" [OTA] UPDATE FOUND! Target: %s (Track: %s)\n", targetVersion, isCanaryBuild ? "CANARY" : "STABLE");
                 Serial.printf(" [OTA] Binary URL: %s\n", binUrl);
                 Serial.println(F("==========================================\n"));
 
@@ -125,6 +154,11 @@ public:
         sscanf(s2, "%d.%d.%d", &maj2, &min2, &pat2);
         if (maj1 != maj2) return maj1 - maj2;
         if (min1 != min2) return min1 - min2;
-        return pat1 - pat2;
+        if (pat1 != pat2) return pat1 - pat2;
+        bool pre1 = (strchr(s1, '-') != nullptr);
+        bool pre2 = (strchr(s2, '-') != nullptr);
+        if (pre1 && !pre2) return -1;
+        if (!pre1 && pre2) return 1;
+        return 0;
     }
 };

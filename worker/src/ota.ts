@@ -3,7 +3,8 @@ import { Database } from "./db";
 
 function parseSemVer(v: string): [number, number, number] {
   const clean = v.replace(/^v/, "").trim();
-  const parts = clean.split(".").map(p => parseInt(p, 10) || 0);
+  const [base] = clean.split("-");
+  const parts = base.split(".").map(p => parseInt(p, 10) || 0);
   return [parts[0] || 0, parts[1] || 0, parts[2] || 0];
 }
 
@@ -12,7 +13,13 @@ function compareSemVer(v1: string, v2: string): number {
   const [maj2, min2, pat2] = parseSemVer(v2);
   if (maj1 !== maj2) return maj1 - maj2;
   if (min1 !== min2) return min1 - min2;
-  return pat1 - pat2;
+  if (pat1 !== pat2) return pat1 - pat2;
+  // Final release has higher precedence than pre-release/canary with identical major.minor.patch
+  const isPre1 = v1.includes("-");
+  const isPre2 = v2.includes("-");
+  if (isPre1 && !isPre2) return -1;
+  if (!isPre1 && isPre2) return 1;
+  return 0;
 }
 
 export async function handleOta(request: Request, env: Env): Promise<Response> {
@@ -35,6 +42,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
   const stationId = url.searchParams.get("station_id")?.trim();
   const currentVersion = url.searchParams.get("version")?.trim() || "0.0.0";
   const board = url.searchParams.get("board")?.trim() || "esp32dev";
+  const clientCanary = url.searchParams.get("canary") === "1" || url.searchParams.get("track") === "canary";
 
   if (!stationId) {
     return new Response(JSON.stringify({ error: "Missing required query parameter: station_id" }), {
@@ -49,45 +57,51 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
     .bind(stationId)
     .first()) as (StationRecord & { is_canary?: number; ota_url?: string }) | null;
 
+  // The database is the primary source of truth for canary entitlement
+  const isCanary = station ? (station.is_canary === 1) : clientCanary;
+
   // Check if station has an explicit target_version assigned (e.g. for Canary testing)
   let targetVersion = station?.target_version?.trim();
+  let track = isCanary ? "canary" : "stable";
+  let allowDowngrade = false;
 
-  // If no canary/custom target version is assigned:
-  if (!targetVersion) {
-    // If station is designated as canary only and has no target, hold updates
-    if (station && station.is_canary === 1) {
-      return new Response(
-        JSON.stringify({
-          update_available: false,
-          station_id: stationId,
-          current_version: currentVersion,
-          message: "Canary station holding on current version pending test assignment"
-        }),
-        { status: 200, headers: { "Content-Type": "application/json" } }
-      );
+  if (targetVersion) {
+    allowDowngrade = true;
+    if (targetVersion.includes("canary") || targetVersion.includes("beta")) {
+      track = "canary";
     }
-    // Otherwise use stable production version (fleet default)
-    targetVersion = env.STABLE_VERSION || "1.1.3";
-
-    // For fleet updates, never downgrade a device running an equal or newer version
-    if (compareSemVer(targetVersion, currentVersion) <= 0) {
-      return new Response(
-        JSON.stringify({
-          update_available: false,
-          station_id: stationId,
-          current_version: currentVersion,
-          target_version: targetVersion,
-          message: "Firmware is already up to date"
-        }),
-        {
-          status: 200,
-          headers: { "Content-Type": "application/json" }
-        }
-      );
+  } else if (isCanary) {
+    // Canary station:
+    // If CANARY_VERSION is configured and newer, offer it; otherwise follow stable fleet release
+    if (env.CANARY_VERSION && env.CANARY_VERSION.trim()) {
+      targetVersion = env.CANARY_VERSION.trim();
+      track = "canary";
+    } else {
+      targetVersion = env.STABLE_VERSION || "1.1.4";
+      track = "stable";
     }
+  } else {
+    // Non-canary station: always follow stable production release
+    targetVersion = env.STABLE_VERSION || "1.1.4";
+    track = "stable";
   }
 
-  // Check if already running the target version (for explicit station target_version)
+  // Version check:
+  if (!allowDowngrade && compareSemVer(targetVersion, currentVersion) <= 0) {
+    return new Response(
+      JSON.stringify({
+        update_available: false,
+        station_id: stationId,
+        current_version: currentVersion,
+        target_version: targetVersion,
+        track,
+        is_canary: isCanary,
+        message: "Firmware is already up to date"
+      }),
+      { status: 200, headers: { "Content-Type": "application/json" } }
+    );
+  }
+
   if (currentVersion === targetVersion) {
     return new Response(
       JSON.stringify({
@@ -95,12 +109,11 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
         station_id: stationId,
         current_version: currentVersion,
         target_version: targetVersion,
+        track,
+        is_canary: isCanary,
         message: "Firmware is already up to date"
       }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json" }
-      }
+      { status: 200, headers: { "Content-Type": "application/json" } }
     );
   }
 
@@ -121,7 +134,10 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
       station_id: stationId,
       current_version: currentVersion,
       target_version: targetVersion,
+      track,
+      is_canary: isCanary,
       board: board,
+      allow_downgrade: allowDowngrade,
       url: downloadUrl
     }),
     {
@@ -136,7 +152,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
 
 // Handles binary delivery with Cloudflare R2 as primary and GitHub Releases / Pages as backup
 export async function handleFirmwareDownload(filename: string, request: Request, env: Env): Promise<Response> {
-  const stableTag = `v${env.STABLE_VERSION || "1.1.3"}`;
+  const stableTag = `v${env.STABLE_VERSION || "1.1.4"}`;
 
   // 1. Try Cloudflare R2 Storage (Zero egress fees, high speed)
   if (env.OTA_BUCKET) {
@@ -162,8 +178,8 @@ export async function handleFirmwareDownload(filename: string, request: Request,
     }
   }
 
-  // 2. Resolve target tag and canonical GitHub release asset name
-  const match = filename.match(/v(\d+\.\d+\.\d+)/);
+  // 2. Resolve target tag and canonical GitHub release asset name (supports canary suffixes e.g. v1.1.4-canary.1)
+  const match = filename.match(/v(\d+\.\d+\.\d+(?:-[a-zA-Z0-9\.]+)?)/);
   const tag = match ? `v${match[1]}` : stableTag;
 
   let releaseFilename = filename;

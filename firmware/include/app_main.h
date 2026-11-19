@@ -194,7 +194,8 @@ public:
                 if (_lastOtaCheckEpoch == 0 || (ntpEpoch >= _lastOtaCheckEpoch + 3600)) {
                     _lastOtaCheckEpoch = ntpEpoch;
                     bool updating = OtaManager::checkForUpdate(_config.worker_url, _config.station_id,
-                                                               FIRMWARE_VERSION, _config.hw);
+                                                               FIRMWARE_VERSION, _config.hw,
+                                                               &_config.is_canary, &_configMgr);
                     if (updating) return;
                 }
                 WiFi.disconnect(true);
@@ -452,7 +453,8 @@ private:
             if (_lastOtaCheckEpoch == 0 || (currentEpoch >= _lastOtaCheckEpoch + 3600)) {
                 _lastOtaCheckEpoch = currentEpoch;
                 bool updating = OtaManager::checkForUpdate(_config.worker_url, _config.station_id,
-                                                           FIRMWARE_VERSION, _config.hw);
+                                                           FIRMWARE_VERSION, _config.hw,
+                                                           &_config.is_canary, &_configMgr);
                 if (updating) return false;
             }
 
@@ -540,6 +542,7 @@ private:
         if (cycle.battery_mv > 0) doc["battery_mv"] = cycle.battery_mv;
         doc["board_type"] = cycle.board_type;
         doc["firmware_version"] = FIRMWARE_VERSION;
+        doc["is_canary"] = _config.is_canary;
         if (strlen(_config.station_desc) > 0) doc["description"] = _config.station_desc;
 
         JsonArray arrNet = doc["networks"].to<JsonArray>();

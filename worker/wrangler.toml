@@ -6,7 +6,8 @@ workers_dev = true
 
 [vars]
 ENVIRONMENT = "production"
-STABLE_VERSION = "1.1.3"
+STABLE_VERSION = "1.1.4"
+CANARY_VERSION = ""
 ADMIN_USERNAME = "admin"
 ADMIN_PASSWORD = "hcmue.edu.vn"
 

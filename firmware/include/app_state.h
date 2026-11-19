@@ -20,6 +20,7 @@ struct AppConfig {
     WifiNetworkConfig networks[MAX_MONITORED_NETWORKS];
     uint8_t network_count;
     bool is_configured;
+    bool is_canary;           // Canary / Beta release track enrollment flag
     bool powerbank_keepalive; // Wake up 500ms every 20s during light sleep
     bool backup_enabled;      // Failover to backup hotspot if primary Wi-Fi has no internet
     char backup_ssid[33];     // Backup SSID (default: "S24")
@@ -34,6 +35,7 @@ struct AppConfig {
         memset(networks, 0, sizeof(networks));
         network_count = 0;
         is_configured = false;
+        is_canary = false;
         powerbank_keepalive = false;
         backup_enabled = false;
         strncpy(backup_ssid, "S24", sizeof(backup_ssid) - 1);
