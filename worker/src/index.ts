@@ -45,7 +45,7 @@ export default {
       if (path === "/manifest-update.json" || path === "/firmware/manifest-update.json") {
         const manifest = {
           name: "WIFI Monitor (Update Only)",
-          version: env.STABLE_VERSION || "1.1.2",
+          version: env.STABLE_VERSION || "1.1.3",
           funding_url: "https://github.com/kreier/wifi",
           new_install_prompt_erase: false,
           builds: [
@@ -70,7 +70,7 @@ export default {
       if (path === "/manifest.json" || path === "/firmware/manifest.json") {
         const manifest = {
           name: "WIFI Monitor (kreier/wifi)",
-          version: env.STABLE_VERSION || "1.1.2",
+          version: env.STABLE_VERSION || "1.1.3",
           funding_url: "https://github.com/kreier/wifi",
           new_install_prompt_erase: true,
           builds: [

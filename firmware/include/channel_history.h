@@ -225,7 +225,6 @@ public:
                 JsonObject obj = rootArr.add<JsonObject>();
                 obj["station_id"] = stationId;
                 obj["timestamp"] = slot.timestamp;
-                obj["scan_duration_ms"] = 26000;
 
                 if (slot.ble_unique_devices > 0 || slot.classic_devices > 0) {
                     JsonObject bt = obj["bluetooth"].to<JsonObject>();

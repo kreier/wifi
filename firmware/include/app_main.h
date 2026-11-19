@@ -124,7 +124,7 @@ public:
         {
             std::vector<SurveyItem> scanResults = WifiScanner::performScan(scanDurationMs);
             _led.setOff();
-            _ramScanDurationMs += scanDurationMs;
+            _ramScanDurationMs = scanDurationMs; // Record single scan duration (not cumulative sum across subcycles)
             accumulateSurvey(scanResults);
         }
 
@@ -385,7 +385,7 @@ private:
                     break;
                 }
             }
-            if (!found && _ramBt.ble_devices.size() < 15) {
+            if (!found && _ramBt.ble_devices.size() < 25) {
                 _ramBt.ble_devices.push_back(dev);
             }
         }

@@ -79,7 +79,7 @@ export async function handleTelemetry(request: Request, env: Env): Promise<Respo
     }
 
     const scanDuration = typeof cycle.scan_duration_ms === "number" ? cycle.scan_duration_ms : null;
-    if (scanDuration !== null) {
+    if (scanDuration !== null && scanDuration < 15000) {
       latestScanDuration = scanDuration;
     }
 

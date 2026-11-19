@@ -47,9 +47,10 @@ jobs:
       - name: Build Firmware with PlatformIO
         run: |
           cd firmware
-          pio run -e esp32dev
+          pio run -e esp32dev | tee ../pio_build.log
+          cd ..
 
-      - name: Package Firmware Assets
+      - name: Package Firmware Assets & Generate Release Notes
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
           mkdir -p release_assets
@@ -64,6 +65,7 @@ jobs:
 
           python3 -c "
           import os
+          import re
           tag = '${TAG}'
           fw = open('release_assets/firmware-esp32-' + tag + '.bin', 'rb').read()
           pt = open('release_assets/partitions-esp32-' + tag + '.bin', 'rb').read()
@@ -76,6 +78,59 @@ jobs:
               buf[0xe000:0xe000+len(ba)] = ba
           buf[0x10000:0x10000+len(fw)] = fw
           open('release_assets/firmware-esp32-merged-' + tag + '.bin', 'wb').write(buf)
+
+          # Extract flash and RAM statistics
+          fw_size = len(fw)
+          partition_size = 1966080  # 1.9 MB OTA slot
+          flash_pct = (fw_size / partition_size) * 100
+          free_flash = partition_size - fw_size
+          free_flash_pct = (free_flash / partition_size) * 100
+
+          ram_str = 'N/A'
+          flash_str = f'{fw_size:,} bytes ({flash_pct:.1f}% of {partition_size:,} bytes)'
+          if os.path.exists('pio_build.log'):
+              log = open('pio_build.log').read()
+              ram_match = re.search(r'RAM:\s+\[[^\]]+\]\s+([\d\.]+%)\s+\(used\s+(\d+)\s+bytes\s+from\s+(\d+)\s+bytes\)', log)
+              if ram_match:
+                  ram_str = f'{int(ram_match.group(2)):,} bytes ({ram_match.group(1)} of {int(ram_match.group(3)):,} bytes)'
+              flash_match = re.search(r'Flash:\s+\[[^\]]+\]\s+([\d\.]+%)\s+\(used\s+(\d+)\s+bytes\s+from\s+(\d+)\s+bytes\)', log)
+              if flash_match:
+                  flash_str = f'{int(flash_match.group(2)):,} bytes ({flash_match.group(1)} of {int(flash_match.group(3)):,} bytes)'
+
+          # Extract changelog section for release documentation
+          changelog_section = ''
+          if os.path.exists('CHANGELOG.md'):
+              clean_ver = tag.lstrip('v')
+              content = open('CHANGELOG.md').read()
+              m = re.search(r'## \[' + re.escape(clean_ver) + r'\][^\n]*\n(.*?)(?=\n## \[|\Z)', content, re.DOTALL)
+              if m:
+                  changelog_section = m.group(1).strip()
+
+          body = f'''## Release {tag}
+
+### ⚡ ESP32 Firmware Resource Utilization
+| Metric | Utilization | Total Allocated | Free Space |
+| :--- | :--- | :--- | :--- |
+| **Flash (App Slot)** | **{flash_str}** | 1,966,080 bytes (1.9 MB OTA) | {free_flash:,} bytes ({free_flash_pct:.1f}%) |
+| **DRAM (RAM)** | **{ram_str}** | 327,680 bytes (320 KB) | Dynamic Heap |
+
+---
+
+### 📖 Release Documentation & Highlights
+{changelog_section if changelog_section else 'See [CHANGELOG.md](https://github.com/kreier/wifi/blob/main/CHANGELOG.md) for full release notes.'}
+
+---
+
+### 🚀 Installation & Flashing
+- **In-Browser Web Flasher (Zero-install)**: [https://kreier.github.io/wifi](https://kreier.github.io/wifi)
+- **Manual Flashing (esptool.py)**:
+  ```bash
+  esptool.py --chip esp32 --baud 921600 write_flash 0x0 firmware-esp32-merged-{tag}.bin
+  ```
+- **Firmware Binary (App only at 0x10000 or via OTA)**: `firmware-esp32-{tag}.bin`
+- **Full Factory Image (Bootloader + Partitions + App at 0x0)**: `firmware-esp32-merged-{tag}.bin`
+'''
+          open('release_body.md', 'w').write(body)
           "
 
           cd release_assets
@@ -94,7 +149,7 @@ jobs:
           name: Release ${{ steps.vars.outputs.tag }}
           draft: false
           prerelease: false
-          generate_release_notes: true
+          body_path: release_body.md
           files: |
             release_assets/firmware-esp32-${{ steps.vars.outputs.tag }}.bin
             release_assets/partitions-esp32-${{ steps.vars.outputs.tag }}.bin

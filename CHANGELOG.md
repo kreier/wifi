@@ -15,6 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.3] - 2026-11-19
+
+### Fixed & Optimized (Firmware)
+- **Wi-Fi Spectrum Scan Duration**:
+  - Corrected `_ramScanDurationMs` in `app_main.h` to record individual scan duration (~4000 ms) instead of cumulatively summing durations across 5 two-minute subcycles (~20,000–25,000 ms) in powered mode.
+  - Removed erroneous hardcoded `scan_duration_ms: 26000` from 30-minute promiscuous airtime batches in `channel_history.h`.
+- **Bluetooth Scan Count & Discovered Device List**:
+  - Increased linear unique device tracking buffer in `BluetoothScanner::scanBle` from 25 to 60 records, resolving fixed 25-device saturation and restoring true RF count accuracy (20–45+ devices).
+  - Increased reported device details from 15 to 20 in `BluetoothScanner` and allowed up to 25 detailed records in `_ramBt.ble_devices`.
+
+### Fixed & Enhanced (Worker Backend & CI/CD)
+- **Bluetooth Device Retention in D1**:
+  - Updated `saveBluetoothTelemetry` in `db.ts` with conditional coalesce logic so that 30-minute aggregate rollup slots (which do not carry individual MAC lists) never overwrite or zero out `devices_json` in `station_latest_bluetooth` or `station_bluetooth_summary`.
+  - Added upper-bound validation (`< 15000 ms`) in `telemetry.ts` to prevent anomalous scan times from overwriting `latestScanDuration`.
+- **Release Documentation & Flash Sizing**:
+  - Enhanced GitHub Actions release workflow (`build-release.yml`) to automatically parse and publish exact Flash memory utilization (bytes and percentage of 1.9 MB OTA partition), dynamic RAM usage, release highlights, and flashing guides in GitHub Releases.
+
+---
+
 ## [1.1.2] - 2026-11-19
 
 ### Added & Enhanced (Web Dashboard & Worker Backend)

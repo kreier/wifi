@@ -759,7 +759,10 @@ export class Database {
             ble_other = excluded.ble_other,
             classic_total = excluded.classic_total,
             scan_duration_ms = excluded.scan_duration_ms,
-            devices_json = excluded.devices_json
+            devices_json = CASE
+              WHEN excluded.devices_json != '{"ble_devices":[],"classic_devices":[]}' THEN excluded.devices_json
+              ELSE COALESCE(station_bluetooth_summary.devices_json, excluded.devices_json)
+            END
         `).bind(
           stationId, timestamp, bleTotalPackets, bleTotalMacs, bleUniqueDevices,
           bleRandomMacs, blePublicMacs, bleBeacons, bleSmartphones, bleWearables,
@@ -773,20 +776,26 @@ export class Database {
           )
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
           ON CONFLICT(station_id) DO UPDATE SET
-            timestamp = excluded.timestamp,
-            ble_total_packets = excluded.ble_total_packets,
-            ble_total_macs = excluded.ble_total_macs,
-            ble_unique_devices = excluded.ble_unique_devices,
-            ble_random_macs = excluded.ble_random_macs,
-            ble_public_macs = excluded.ble_public_macs,
-            ble_beacons = excluded.ble_beacons,
-            ble_smartphones = excluded.ble_smartphones,
-            ble_wearables = excluded.ble_wearables,
-            ble_audio = excluded.ble_audio,
-            ble_other = excluded.ble_other,
-            classic_total = excluded.classic_total,
-            scan_duration_ms = excluded.scan_duration_ms,
-            devices_json = excluded.devices_json
+            timestamp = CASE
+              WHEN excluded.timestamp >= station_latest_bluetooth.timestamp THEN excluded.timestamp
+              ELSE station_latest_bluetooth.timestamp
+            END,
+            ble_total_packets = CASE WHEN excluded.ble_total_packets > 0 THEN excluded.ble_total_packets ELSE station_latest_bluetooth.ble_total_packets END,
+            ble_total_macs = CASE WHEN excluded.ble_total_macs > 0 THEN excluded.ble_total_macs ELSE station_latest_bluetooth.ble_total_macs END,
+            ble_unique_devices = CASE WHEN excluded.ble_unique_devices > 0 THEN excluded.ble_unique_devices ELSE station_latest_bluetooth.ble_unique_devices END,
+            ble_random_macs = CASE WHEN excluded.ble_random_macs > 0 THEN excluded.ble_random_macs ELSE station_latest_bluetooth.ble_random_macs END,
+            ble_public_macs = CASE WHEN excluded.ble_public_macs > 0 THEN excluded.ble_public_macs ELSE station_latest_bluetooth.ble_public_macs END,
+            ble_beacons = CASE WHEN excluded.ble_beacons > 0 THEN excluded.ble_beacons ELSE station_latest_bluetooth.ble_beacons END,
+            ble_smartphones = CASE WHEN excluded.ble_smartphones > 0 THEN excluded.ble_smartphones ELSE station_latest_bluetooth.ble_smartphones END,
+            ble_wearables = CASE WHEN excluded.ble_wearables > 0 THEN excluded.ble_wearables ELSE station_latest_bluetooth.ble_wearables END,
+            ble_audio = CASE WHEN excluded.ble_audio > 0 THEN excluded.ble_audio ELSE station_latest_bluetooth.ble_audio END,
+            ble_other = CASE WHEN excluded.ble_other > 0 THEN excluded.ble_other ELSE station_latest_bluetooth.ble_other END,
+            classic_total = CASE WHEN excluded.classic_total > 0 THEN excluded.classic_total ELSE station_latest_bluetooth.classic_total END,
+            scan_duration_ms = CASE WHEN excluded.scan_duration_ms IS NOT NULL THEN excluded.scan_duration_ms ELSE station_latest_bluetooth.scan_duration_ms END,
+            devices_json = CASE
+              WHEN excluded.devices_json != '{"ble_devices":[],"classic_devices":[]}' THEN excluded.devices_json
+              ELSE COALESCE(station_latest_bluetooth.devices_json, excluded.devices_json)
+            END
         `).bind(
           stationId, timestamp, bleTotalPackets, bleTotalMacs, bleUniqueDevices,
           bleRandomMacs, blePublicMacs, bleBeacons, bleSmartphones, bleWearables,

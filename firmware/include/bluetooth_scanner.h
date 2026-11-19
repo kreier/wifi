@@ -155,7 +155,7 @@ private:
         std::vector<uint64_t> observedMacs;
         observedMacs.reserve(64);
         std::vector<BleDeviceRecord> uniqueDevices;
-        uniqueDevices.reserve(25);
+        uniqueDevices.reserve(60);
 
         for (int i = 0; i < count; i++) {
             BLEAdvertisedDevice dev = pResults->getDevice(i);
@@ -245,7 +245,7 @@ private:
             rec.rssi = rssi;
             rec.fingerprint = fp;
 
-            // Deduplicate linearly without allocating map/tree nodes (strictly capped at 25 devices)
+            // Deduplicate linearly without allocating map/tree nodes (tracked up to 60 unique devices)
             bool found = false;
             for (auto &existing : uniqueDevices) {
                 if (existing.fingerprint == fp) {
@@ -256,7 +256,7 @@ private:
                     break;
                 }
             }
-            if (!found && uniqueDevices.size() < 25) {
+            if (!found && uniqueDevices.size() < 60) {
                 uniqueDevices.push_back(rec);
             }
         }
@@ -290,9 +290,9 @@ private:
                       return a.rssi > b.rssi;
                   });
 
-        // Cap reported BLE device details to top 15 most prominent
-        if (result.ble_devices.size() > 15) {
-            result.ble_devices.resize(15);
+        // Cap reported BLE device details to top 20 most prominent
+        if (result.ble_devices.size() > 20) {
+            result.ble_devices.resize(20);
         }
     }
 
