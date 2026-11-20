@@ -9,7 +9,7 @@ export function renderDashboardHtml(): string {
   <script>
     (function() {
       try {
-        const saved = localStorage.getItem("wifi_theme") || localStorage.getItem("t18_theme");
+        const saved = localStorage.getItem("t18_theme") || localStorage.getItem("wifi_theme");
         const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
         document.documentElement.setAttribute("data-theme", saved || (prefersDark ? "dark" : "light"));
       } catch(e) {}
@@ -758,7 +758,7 @@ export function renderDashboardHtml(): string {
     .copy-code-btn:hover {
       background: rgba(255, 255, 255, 0.2);
     }
-        .timeframe-btn {
+    .timeframe-btn {
       padding: 0.22rem 0.65rem;
       font-size: 0.75rem;
       font-weight: 600;
@@ -986,7 +986,7 @@ export function renderDashboardHtml(): string {
       <svg viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9.44 2.02-12 5.29l1.41 1.42C3.59 7.02 7.55 5.17 12 5.17s8.41 1.85 10.59 4.54L24 8.29C21.44 5.02 16.97 3 12 3zm0 4.33c-3.69 0-7.01 1.5-9.02 3.91l1.42 1.41C6.07 10.97 8.87 9.67 12 9.67s5.93 1.3 7.6 3.01l1.42-1.41C19.01 8.83 15.69 7.33 12 7.33zm0 4.34c-2.4 0-4.57.97-6.04 2.54l1.42 1.42C8.42 14.54 10.09 13.67 12 13.67s3.58.87 4.62 1.96l1.42-1.42C16.57 12.64 14.4 11.67 12 11.67zM12 16c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2z"/></svg>
       <div>
         <span class="brand-title">WIFI Monitor</span>
-        <span class="brand-tag">v1.1.4</span>
+        <span class="brand-tag">v1.1.8</span>
       </div>
     </a>
     <div class="header-controls">
@@ -1030,6 +1030,9 @@ export function renderDashboardHtml(): string {
           <span class="pulse-dot"></span>
           <span id="stStatusText">Checking</span>
         </div>
+        <button id="stConfigBtn" class="admin-btn secondary" style="padding: 0.35rem 0.65rem; font-size: 0.775rem; display: inline-flex; align-items: center; gap: 0.35rem; cursor: pointer; border-radius: 999px;" onclick="openStationConfigFromBanner()" title="Configure station settings, description, and Canary enrollment">
+          <span>⚙️</span> Configure
+        </button>
       </div>
     </div>
 
@@ -1235,8 +1238,8 @@ export function renderDashboardHtml(): string {
               <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#10b981; border-radius:2px;" title="4 - 8 devices"></span>
               <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#eab308; border-radius:2px;" title="9 - 15 devices"></span>
               <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#f97316; border-radius:2px;" title="16 - 25 devices"></span>
-              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#d946ef; border-radius:2px;" title="&gt; 25 devices (Dense)"></span>
-              <span style="color:#38bdf8; font-weight:600; margin-left:2px;">&gt;25 Dev</span>
+              <span class="ble-legend-swatch" style="display:inline-block; width:12px; height:10px; background:#d946ef; border-radius:2px;" title="Peak devices"></span>
+              <span id="bleLegendMaxText" style="color:#38bdf8; font-weight:600; margin-left:2px;">Dynamic</span>
             </div>
           </div>
           <!-- Dedicated Full-Width Hover Info Bar (Permanently allocated height to prevent hover flicker) -->
@@ -1246,7 +1249,7 @@ export function renderDashboardHtml(): string {
         </div>
       </div>
 
-      <!-- 7-Day Historical Heatmaps (Collapsed) -->
+      <!-- 7-Day Historical Heatmaps Drawer -->
       <div style="margin-top: 0.85rem; border-top: 1px solid var(--card-border); padding-top: 0.85rem;">
         <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleWeeklyHeatmap()">
           <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
@@ -1269,8 +1272,11 @@ export function renderDashboardHtml(): string {
           <!-- 2. Bluetooth 7-Day Matrix -->
           <div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:0.35rem; flex-wrap:wrap; gap:0.4rem;">
-              <span style="font-size:0.78rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.5px;">Bluetooth Device Activity (Unique BLE &amp; Classic Devices)</span>
-              <span style="font-size:0.72rem; color:var(--text-muted);">7-Day unique Bluetooth transmitters detected per 30-min window</span>
+              <div style="display:flex; align-items:center; gap:0.5rem; flex-wrap:wrap;">
+                <span style="font-size:0.78rem; font-weight:700; color:#38bdf8; text-transform:uppercase; letter-spacing:0.5px;">Bluetooth Device Activity (Unique BLE &amp; Classic Devices)</span>
+                <span id="weeklyBtLegendBadge" style="font-size:0.72rem; color:var(--text-muted);">(Dynamic 7-Day Scale)</span>
+              </div>
+              <div id="weeklyBtLegendWrap" style="display:inline-flex; align-items:center; gap:3px; font-size:0.72rem;"></div>
             </div>
             <div id="weeklyBtHoverInfo" style="color: var(--text-muted); font-family: monospace; font-size: 0.75rem; min-height: 1.4rem; line-height: 1.4; margin-bottom: 0.4rem;">Hover over a cell to inspect Bluetooth metrics</div>
             <div id="weeklyBtHeatmapContainer" style="min-width: 760px; padding: 4px 12px 10px 4px;"></div>
@@ -1281,9 +1287,16 @@ export function renderDashboardHtml(): string {
 
     <!-- Historical Trends (Chart) -->
     <div class="chart-container">
-      <div class="chart-header">
+      <div class="chart-header" style="flex-wrap: wrap; gap: 0.75rem;">
         <div>
-          <h3 style="font-size: 1.1rem; font-weight: 600;">24-Hour Network Latency Trends</h3>
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <h3 id="latencyTrendsTitle" style="font-size: 1.1rem; font-weight: 600; margin: 0;">24-Hour Network Latency Trends</h3>
+            <div style="display: inline-flex; border: 1px solid var(--card-border); border-radius: 0.375rem; overflow: hidden; background: var(--input-bg); margin-left: 0.4rem;">
+              <button id="btnLatTf24" class="timeframe-btn active" onclick="setLatencyTimeframe(24)">24h</button>
+              <button id="btnLatTf48" class="timeframe-btn" onclick="setLatencyTimeframe(48)">48h</button>
+              <button id="btnLatTf168" class="timeframe-btn" onclick="setLatencyTimeframe(168)">7d</button>
+            </div>
+          </div>
           <span style="font-size: 0.8rem; color: var(--text-muted);">10-Minute Polling Cadence</span>
         </div>
         <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
@@ -1404,9 +1417,14 @@ export function renderDashboardHtml(): string {
     <div id="bluetoothSection" class="card" style="padding: 1.25rem 1.5rem; gap: 1rem; margin-bottom: 2rem;">
       <div class="chart-header" style="flex-wrap: wrap; gap: 0.75rem;">
         <div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <h3 style="font-size: 1.1rem; font-weight: 600; margin: 0;">2.4 GHz Bluetooth & BLE Activity</h3>
-            <span id="btBleStatusBadge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; font-weight: 600;">BLE & Classic</span>
+          <div style="display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;">
+            <h3 id="bluetoothSectionTitle" style="font-size: 1.1rem; font-weight: 600; margin: 0;">2.4 GHz Bluetooth &amp; BLE Activity</h3>
+            <span id="btBleStatusBadge" style="background: rgba(59, 130, 246, 0.15); color: #3b82f6; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.72rem; padding: 2px 8px; border-radius: 999px; font-weight: 600;">BLE &amp; Classic</span>
+            <div style="display: inline-flex; border: 1px solid var(--card-border); border-radius: 0.375rem; overflow: hidden; background: var(--input-bg); margin-left: 0.4rem;">
+              <button id="btnBtTf24" class="timeframe-btn active" onclick="setBluetoothTimeframe(24)">24h</button>
+              <button id="btnBtTf48" class="timeframe-btn" onclick="setBluetoothTimeframe(48)">48h</button>
+              <button id="btnBtTf168" class="timeframe-btn" onclick="setBluetoothTimeframe(168)">7d</button>
+            </div>
           </div>
           <span style="font-size: 0.8rem; color: var(--text-muted);">Payload fingerprinting & RPA de-randomization establishing unique device presence</span>
         </div>
@@ -1522,6 +1540,13 @@ export function renderDashboardHtml(): string {
           </div>
         </div>
         <div id="inactiveSurveyDrawer" style="display: none; margin-top: 1rem;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 0.5rem;">
+            <div style="font-size: 0.775rem; color: var(--text-muted);" id="inactiveSubtext">Showing discovered APs absent from latest cycle (last 24 hours)</div>
+            <div style="display: flex; gap: 0.35rem;">
+              <button id="btnInactive24h" class="timeframe-btn active" onclick="switchInactiveView('24h')">Last 24h Missing</button>
+              <button id="btnInactiveAll" class="timeframe-btn" onclick="switchInactiveView('all')">All Discovered APs (Archive)</button>
+            </div>
+          </div>
           <table>
             <thead>
               <tr>
@@ -1550,7 +1575,7 @@ export function renderDashboardHtml(): string {
       <div class="modal-header">
         <div class="modal-title">
           <span>⚡ ESP32 Web Firmware Installer</span>
-          <span class="fw-badge">v1.1.4 Stable</span>
+          <span class="fw-badge">v1.1.8 Stable</span>
         </div>
         <button class="modal-close-btn" onclick="closeFlashModal()" title="Close dialog">✕</button>
       </div>
@@ -1576,14 +1601,46 @@ export function renderDashboardHtml(): string {
             Flash the pre-compiled universal firmware directly to your ESP32 board over USB. No Arduino IDE, PlatformIO, or command-line drivers required.
           </div>
 
+          <!-- Step 1: Target Hardware Architecture -->
           <div style="margin-top:1rem;margin-bottom:0.75rem;">
-            <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;color:var(--text);">Choose Flashing Mode:</div>
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;">
+              <span style="background:var(--accent);color:#0f172a;font-size:0.75rem;padding:0.1rem 0.45rem;border-radius:999px;font-weight:700;">1</span>
+              <span>Select Hardware Target:</span>
+            </div>
+            <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
+              <label id="targetEsp32Label" style="flex:1;min-width:250px;padding:0.75rem 1rem;border:2px solid var(--accent);border-radius:0.5rem;background:rgba(56,189,248,0.08);cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;">
+                <input type="radio" name="flashTargetRadio" value="esp32" checked onchange="window.setFlashTarget('esp32')" style="margin-top:0.25rem;">
+                <div>
+                  <div style="font-weight:600;font-size:0.9rem;color:var(--text);">Standard ESP32 (Xtensa Dual-Core)</div>
+                  <div style="font-size:0.775rem;color:var(--text-muted);margin-top:0.25rem;line-height:1.4;">
+                    For <strong>LILYGO TTGO T18</strong>, <strong>LILYGO T8</strong>, <strong>ESP32 DevKit V1</strong>, and custom WROOM / WROVER modules. Includes Classic Bluetooth + BLE.
+                  </div>
+                </div>
+              </label>
+              <label id="targetC3Label" style="flex:1;min-width:250px;padding:0.75rem 1rem;border:1px solid var(--border);border-radius:0.5rem;background:transparent;cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;">
+                <input type="radio" name="flashTargetRadio" value="c3" onchange="window.setFlashTarget('c3')" style="margin-top:0.25rem;">
+                <div>
+                  <div style="font-weight:600;font-size:0.9rem;color:var(--text);">ESP32-C3 Super Mini (RISC-V Single-Core)</div>
+                  <div style="font-size:0.775rem;color:var(--text-muted);margin-top:0.25rem;line-height:1.4;">
+                    For <strong>ESP32-C3 Super Mini</strong>, C3 DevKit, and compact RISC-V nodes. GPIO 8 active-low status LED, lightweight build without Classic Bluetooth.
+                  </div>
+                </div>
+              </label>
+            </div>
+          </div>
+
+          <!-- Step 2: Choose Flashing Mode -->
+          <div style="margin-top:0.75rem;margin-bottom:0.75rem;">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:0.5rem;color:var(--text);display:flex;align-items:center;gap:0.4rem;">
+              <span style="background:var(--accent);color:#0f172a;font-size:0.75rem;padding:0.1rem 0.45rem;border-radius:999px;font-weight:700;">2</span>
+              <span>Choose Flashing Mode:</span>
+            </div>
             <div style="display:flex;gap:0.75rem;flex-wrap:wrap;">
               <label id="modeUpdateLabel" style="flex:1;min-width:250px;padding:0.75rem 1rem;border:2px solid var(--accent);border-radius:0.5rem;background:rgba(56,189,248,0.08);cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;">
                 <input type="radio" name="flashModeRadio" value="update" checked onchange="window.setFlashMode('update')" style="margin-top:0.25rem;">
                 <div>
                   <div style="font-weight:600;font-size:0.9rem;color:var(--text);">⚡ Update Firmware Only (Keep Settings &amp; Data)</div>
-                  <div style="font-size:0.775rem;color:var(--text-muted);margin-top:0.25rem;line-height:1.4;">Flashes only application partition (0x10000). Preserves Wi-Fi credentials, tokens, and 24h channel utilization history without wiping flash.</div>
+                  <div style="font-size:0.775rem;color:var(--text-muted);margin-top:0.25rem;line-height:1.4;">Installs updated firmware and bootloader without erasing flash. Preserves Wi-Fi credentials, tokens, and 24h channel utilization history in NVS.</div>
                 </div>
               </label>
               <label id="modeCleanLabel" style="flex:1;min-width:250px;padding:0.75rem 1rem;border:1px solid var(--border);border-radius:0.5rem;background:transparent;cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;">
@@ -1593,6 +1650,19 @@ export function renderDashboardHtml(): string {
                   <div style="font-size:0.775rem;color:var(--text-muted);margin-top:0.25rem;line-height:1.4;">For fresh or unconfigured boards. Installs bootloader, partition table, and firmware. Prompts before erasing flash.</div>
                 </div>
               </label>
+            </div>
+          </div>
+
+          <!-- Target & Mode Summary Banner -->
+          <div id="flashTargetSummary" style="background:var(--card-bg, rgba(255,255,255,0.04));border:1px solid var(--card-border);border-radius:0.5rem;padding:0.6rem 0.85rem;font-size:0.8rem;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:0.5rem;margin-bottom:0.75rem;">
+            <div style="display:flex;align-items:center;gap:0.5rem;">
+              <span style="color:var(--text-muted);">Target:</span>
+              <strong id="summaryTargetName" style="color:var(--primary);">Standard ESP32</strong>
+              <span style="color:var(--text-muted);font-size:0.75rem;">•</span>
+              <span id="summaryModeName" style="color:var(--text);">Update (Keep Settings)</span>
+            </div>
+            <div style="font-family:monospace;font-size:0.75rem;color:var(--text-muted);">
+              Manifest: <code id="summaryManifestName" style="color:var(--accent);">manifest-update.json</code>
             </div>
           </div>
 
@@ -1623,11 +1693,11 @@ export function renderDashboardHtml(): string {
               </li>
               <li class="flash-step-item">
                 <span class="flash-step-num">3</span>
-                <div><strong>Install Firmware:</strong> Select <em>Install WIFI Monitor</em>. In <em>Update Firmware</em> mode, your settings and data are preserved. In <em>Clean Install</em> mode, you can check/uncheck <em>Erase device</em>. Progress is shown in real time.</div>
+                <div><strong>Install Firmware:</strong> Select <em>Install T18 Monitor</em>. In <em>Update Firmware</em> mode, your settings and data are preserved. In <em>Clean Install</em> mode, you can check/uncheck <em>Erase device</em>. Progress is shown in real time.</div>
               </li>
               <li class="flash-step-item">
                 <span class="flash-step-num">4</span>
-                <div><strong>Commission Node:</strong> After installation completes, the board boots up and creates a Soft-AP named <code>WIFI-Mon-XXXX</code> (IP <code>192.168.4.1</code>) for captive portal setup.</div>
+                <div><strong>Commission Node:</strong> After installation completes, the board boots up and creates a Soft-AP named <code>T18-Mon-XXXX</code> (IP <code>192.168.4.1</code>) for captive portal setup.</div>
               </li>
             </ul>
           </div>
@@ -1644,6 +1714,7 @@ export function renderDashboardHtml(): string {
             Download pre-compiled binary files for offline flashing with <code>esptool.py</code>, PlatformIO, or desktop tools.
           </div>
 
+          <div style="font-weight:600;font-size:0.9rem;margin-top:0.5rem;color:var(--text);">Target Architecture: ESP32 Standard (T18, T8, DevKit V1)</div>
           <div class="bin-download-grid">
             <div class="bin-card">
               <div class="bin-info">
@@ -1675,31 +1746,64 @@ export function renderDashboardHtml(): string {
             </div>
           </div>
 
-          <div class="bin-card" style="border-color:var(--primary);background:var(--primary-dim);">
+          <div class="bin-card" style="border-color:var(--primary);background:var(--primary-dim);margin-bottom:0.75rem;">
             <div class="bin-info">
-              <span class="bin-name" style="color:var(--primary);">Unified Merged Binary (All-in-One)</span>
-              <span class="bin-meta">Offset: 0x0 (Single-file full flash)</span>
+              <span class="bin-name" style="color:var(--primary);">Unified Merged Binary (ESP32 Full Flash)</span>
+              <span class="bin-meta">Offset: 0x0 (Single-file flash)</span>
             </div>
             <a id="dlMergedBin" href="firmware/firmware-esp32-merged.bin" download="firmware-esp32-merged.bin" class="primary-btn" style="padding:0.4rem 0.85rem;font-size:0.85rem;text-decoration:none;">⬇️ firmware-esp32-merged.bin</a>
           </div>
 
-          <div style="display:flex;flex-direction:column;gap:0.4rem;">
+          <div style="font-weight:600;font-size:0.9rem;margin-top:1rem;color:var(--text);">Target Architecture: ESP32-C3 Super Mini (RISC-V)</div>
+          <div class="bin-download-grid">
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">C3 Application Firmware</span>
+                <span class="bin-meta">Offset: 0x10000 (app0)</span>
+              </div>
+              <a id="dlC3FirmwareBin" href="firmware/firmware-c3.bin" download="firmware-c3.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ firmware-c3.bin</a>
+            </div>
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">C3 Partition Table</span>
+                <span class="bin-meta">Offset: 0x8000 (partitions)</span>
+              </div>
+              <a id="dlC3PartitionsBin" href="firmware/partitions-c3.bin" download="partitions-c3.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ partitions-c3.bin</a>
+            </div>
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">C3 Bootloader</span>
+                <span class="bin-meta">Offset: 0x0 (bootloader)</span>
+              </div>
+              <a id="dlC3BootloaderBin" href="firmware/bootloader-c3.bin" download="bootloader-c3.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ bootloader-c3.bin</a>
+            </div>
+          </div>
+
+          <div class="bin-card" style="border-color:var(--primary);background:var(--primary-dim);">
+            <div class="bin-info">
+              <span class="bin-name" style="color:var(--primary);">Unified Merged Binary (ESP32-C3 Full Flash)</span>
+              <span class="bin-meta">Offset: 0x0 (Single-file flash)</span>
+            </div>
+            <a id="dlC3MergedBin" href="firmware/firmware-esp32c3-merged.bin" download="firmware-esp32c3-merged.bin" class="primary-btn" style="padding:0.4rem 0.85rem;font-size:0.85rem;text-decoration:none;">⬇️ firmware-esp32c3-merged.bin</a>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.75rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:0.85rem;font-weight:600;">Flash with esptool.py (Multi-part):</span>
+              <span style="font-size:0.85rem;font-weight:600;">Flash ESP32 with esptool.py (Merged):</span>
             </div>
             <div class="code-block">
-              <code>esptool.py --chip esp32 --baud 921600 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware.bin</code>
-              <button class="copy-code-btn" onclick="copySnippet('esptool.py --chip esp32 --baud 921600 write_flash 0x1000 bootloader.bin 0x8000 partitions.bin 0xe000 boot_app0.bin 0x10000 firmware.bin', this)">Copy</button>
+              <code>esptool.py --chip esp32 --baud 921600 write_flash 0x0 firmware-esp32-merged.bin</code>
+              <button class="copy-code-btn" onclick="copySnippet('esptool.py --chip esp32 --baud 921600 write_flash 0x0 firmware-esp32-merged.bin', this)">Copy</button>
             </div>
           </div>
 
           <div style="display:flex;flex-direction:column;gap:0.4rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
-              <span style="font-size:0.85rem;font-weight:600;">Flash with esptool.py (Merged Single-file):</span>
+              <span style="font-size:0.85rem;font-weight:600;">Flash ESP32-C3 with esptool.py (Merged):</span>
             </div>
             <div class="code-block">
-              <code>esptool.py --chip esp32 --baud 921600 write_flash 0x0 firmware-esp32-merged.bin</code>
-              <button class="copy-code-btn" onclick="copySnippet('esptool.py --chip esp32 --baud 921600 write_flash 0x0 firmware-esp32-merged.bin', this)">Copy</button>
+              <code>esptool.py --chip esp32c3 --baud 921600 write_flash 0x0 firmware-esp32c3-merged.bin</code>
+              <button class="copy-code-btn" onclick="copySnippet('esptool.py --chip esp32c3 --baud 921600 write_flash 0x0 firmware-esp32c3-merged.bin', this)">Copy</button>
             </div>
           </div>
         </div>
@@ -1711,7 +1815,7 @@ export function renderDashboardHtml(): string {
             <ul class="flash-step-list">
               <li class="flash-step-item">
                 <span class="flash-step-num">1</span>
-                <div><strong>Connect to Soft-AP:</strong> Search for Wi-Fi network <code>WIFI-Mon-XXXX</code> (where XXXX is the device MAC suffix) and connect (password <code>12345678</code> or open).</div>
+                <div><strong>Connect to Soft-AP:</strong> Search for Wi-Fi network <code>T18-Mon-XXXX</code> (where XXXX is the device MAC suffix) and connect (password <code>12345678</code> or open).</div>
               </li>
               <li class="flash-step-item">
                 <span class="flash-step-num">2</span>
@@ -1719,7 +1823,7 @@ export function renderDashboardHtml(): string {
               </li>
               <li class="flash-step-item">
                 <span class="flash-step-num">3</span>
-                <div><strong>Select Board Profile:</strong> Choose your hardware profile (<strong>LILYGO T18</strong>, <strong>LILYGO T8</strong>, <strong>ESP32 DevKit V1</strong>, or <strong>Custom</strong>) to configure status LED and battery ADC pins.</div>
+                <div><strong>Select Board Profile:</strong> Choose your hardware profile (<strong>LILYGO T18</strong>, <strong>LILYGO T8</strong>, <strong>ESP32 DevKit V1</strong>, <strong>ESP32-C3 Super Mini</strong>, or <strong>Custom</strong>) to configure status LED and battery ADC pins.</div>
               </li>
               <li class="flash-step-item">
                 <span class="flash-step-num">4</span>
@@ -1781,6 +1885,7 @@ export function renderDashboardHtml(): string {
           <button id="tabBtnAdminHeatmap" class="modal-tab-btn" onclick="switchAdminTab('heatmap')">Collection &amp; Heatmap</button>
           <button id="tabBtnAdminDb" class="modal-tab-btn" onclick="switchAdminTab('db')">Database Size (D1)</button>
           <button id="tabBtnAdminCleanup" class="modal-tab-btn" onclick="switchAdminTab('cleanup')">Data Cleanup</button>
+          <button id="tabBtnAdminOutliers" class="modal-tab-btn" onclick="switchAdminTab('outliers')">🛡️ Outliers</button>
         </div>
 
         <div class="modal-body">
@@ -1869,12 +1974,12 @@ export function renderDashboardHtml(): string {
             </div>
           </div>
 
-          <!-- Subtab 3: Database Size (wifi-mon-db) -->
+          <!-- Subtab 3: Database Size (t18-mon-db) -->
           <div id="adminTabDb" style="display:none; flex-direction:column; gap:1.25rem;">
             <div class="station-meta-grid" style="margin-top:0; margin-bottom:0.5rem;">
               <div class="meta-item">
                 <span class="meta-label">Database Name</span>
-                <span class="meta-val" style="color:var(--primary);">wifi-mon-db</span>
+                <span class="meta-val" style="color:var(--primary);">t18-mon-db</span>
               </div>
               <div class="meta-item">
                 <span class="meta-label">Est. Total Database Size</span>
@@ -1962,6 +2067,137 @@ export function renderDashboardHtml(): string {
               </div>
             </div>
           </div>
+
+          <!-- Subtab 5: Outlier Detection -->
+          <div id="adminTabOutliers" style="display:none; flex-direction:column; gap:1.25rem;">
+            <div class="flash-guide-card">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; flex-wrap:wrap; gap:0.75rem;">
+                <div>
+                  <h4 style="margin:0 0 0.35rem 0; font-size:0.95rem; color:var(--text-main); display:flex; align-items:center; gap:0.4rem;">
+                    <span>🛡️ Telemetry Outlier &amp; Corruption Detection</span>
+                  </h4>
+                  <p style="font-size:0.8rem; color:var(--text-muted); line-height:1.45; margin:0; max-width:640px;">
+                    Scan the database for impossible or anomalous records (e.g. impossible BLE device counts, uninitialized memory readings, out-of-bounds Wi-Fi airtime, invalid battery voltages, or extreme probe timeouts). Inspect and selectively delete occurrences to restore dataset integrity.
+                  </p>
+                </div>
+                <div style="display:flex; gap:0.5rem; align-items:center; flex-wrap:wrap;">
+                  <button class="admin-btn secondary" onclick="scanDatabaseOutliers()">
+                    <span>🔍 Rescan Outliers</span>
+                  </button>
+                  <button class="admin-btn danger" id="btnPurgeAllOutliers" style="display:none;" onclick="purgeAllOutliersAction()">
+                    <span>🗑️ Purge All Outliers</span>
+                  </button>
+                </div>
+              </div>
+
+              <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(220px, 1fr)); gap:1rem; margin-top:1rem; margin-bottom:0.75rem;">
+                <div class="admin-input-group">
+                  <label for="outlierStationSelect">Filter Station</label>
+                  <select id="outlierStationSelect" onchange="scanDatabaseOutliers()">
+                    <option value="all">All Stations (Fleet-Wide)</option>
+                  </select>
+                </div>
+              </div>
+
+              <div id="outliersStatusBanner" style="display:none; margin-top:0.5rem; padding:0.65rem 0.9rem; border-radius:0.4rem; font-size:0.8rem;"></div>
+            </div>
+
+            <div class="db-table-card">
+              <div style="padding:0.75rem 1rem; border-bottom:1px solid var(--card-border); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.5rem;">
+                <div>
+                  <h4 style="margin:0; font-size:0.9rem; color:var(--text-main);">Detected Anomalies</h4>
+                  <div style="font-size:0.75rem; color:var(--text-muted);" id="outliersTableSubtitle">Scan results</div>
+                </div>
+                <div>
+                  <button class="admin-btn danger" id="btnDeleteSelectedOutliers" style="display:none; padding:0.35rem 0.75rem; font-size:0.75rem;" onclick="deleteSelectedOutliers()">
+                    <span>🗑️ Delete Selected (<span id="selectedOutliersCount">0</span>)</span>
+                  </button>
+                </div>
+              </div>
+              <div style="overflow-x:auto;">
+                <table class="admin-table">
+                  <thead>
+                    <tr>
+                      <th style="width:36px; text-align:center;"><input type="checkbox" id="selectAllOutliers" onchange="toggleSelectAllOutliers(this.checked)" /></th>
+                      <th>Station</th>
+                      <th>Timestamp / Slot</th>
+                      <th>Table / Metric</th>
+                      <th>Observed Value</th>
+                      <th>Anomaly Reason</th>
+                      <th>Severity</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody id="adminOutliersTableBody">
+                    <tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:1.5rem;">Click 'Rescan Outliers' to analyze database records.</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Station Configuration Modal -->
+  <div id="editStationModal" class="modal-backdrop" onclick="onEditStationBackdropClick(event)">
+    <div class="modal-window" onclick="event.stopPropagation()" style="max-width: 520px;">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>⚙️ Configure Station</span>
+          <span id="editStationIdBadge" class="brand-tag" style="font-family: monospace;">--</span>
+        </div>
+        <button class="modal-close-btn" onclick="closeEditStationModal()" title="Close dialog">✕</button>
+      </div>
+
+      <div class="modal-body" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 1rem;">
+        <div class="admin-input-group">
+          <label for="editStationDescInput">Station Description / Location</label>
+          <input type="text" id="editStationDescInput" placeholder="e.g. Office Desk, Lab 3, Rooftop Mast" />
+        </div>
+
+        <div style="background: var(--card-bg, rgba(255,255,255,0.03)); border: 1px solid var(--card-border); border-radius: 0.5rem; padding: 0.75rem 1rem; display: flex; flex-direction: column; gap: 0.4rem; font-size: 0.8rem;">
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Current Firmware:</span>
+            <strong id="editStationFwDisplay" style="font-family: monospace;">--</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-muted);">Board Architecture:</span>
+            <span id="editStationBoardDisplay">--</span>
+          </div>
+        </div>
+
+        <div style="border: 1px solid var(--card-border); border-radius: 0.5rem; padding: 0.85rem; background: rgba(56,189,248,0.03);">
+          <div style="display: flex; align-items: flex-start; gap: 0.65rem;">
+            <input type="checkbox" id="editStationCanaryCheckbox" style="margin-top: 0.25rem; width: 1.1rem; height: 1.1rem; cursor: pointer;" />
+            <div style="flex: 1;">
+              <label for="editStationCanaryCheckbox" style="font-weight: 600; font-size: 0.9rem; cursor: pointer; display: block;">
+                Canary / Pre-Release Channel
+              </label>
+              <div style="font-size: 0.775rem; color: var(--text-muted); margin-top: 0.2rem; line-height: 1.4;">
+                Enroll this node to automatically receive experimental pre-release builds and release candidates.
+              </div>
+            </div>
+          </div>
+          <div id="editStationCanaryWarning" style="display: none; margin-top: 0.65rem; padding: 0.5rem 0.75rem; border-radius: 0.35rem; background: rgba(245, 158, 11, 0.12); border: 1px solid #f59e0b; color: #d97706; font-size: 0.775rem; line-height: 1.4;">
+            ⚠️ <strong>Firmware Upgrade Required:</strong> Canary channel enrollment requires station firmware <strong>v1.1.4 or newer</strong>. This station is currently reporting <span id="editStationCanaryFwNeeded">v1.1.3</span> and cannot be enrolled until updated.
+          </div>
+        </div>
+
+        <div class="admin-input-group">
+          <label for="editStationTargetInput">Pinned OTA Target Version <span style="font-size:0.75rem; color:var(--text-muted); font-weight:normal;">(Optional)</span></label>
+          <input type="text" id="editStationTargetInput" placeholder="Leave blank for channel default, or enter e.g. 1.1.8" />
+          <div style="font-size: 0.725rem; color: var(--text-muted); margin-top: 0.25rem;">
+            Force node to a specific release tag. Leave empty to automatically follow Stable or Canary.
+          </div>
+        </div>
+
+        <div id="editStationError" style="display: none; padding: 0.5rem 0.75rem; border-radius: 0.35rem; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: var(--danger); font-size: 0.8rem;"></div>
+
+        <div style="display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem;">
+          <button type="button" class="admin-btn secondary" onclick="closeEditStationModal()">Cancel</button>
+          <button type="button" id="editStationSaveBtn" class="admin-btn primary" onclick="submitEditStationModal()">Save Changes</button>
         </div>
       </div>
     </div>
@@ -1978,7 +2214,7 @@ export function renderDashboardHtml(): string {
     <span>|</span>
     <a href="javascript:void(0)" onclick="openSettingsModal()" style="font-weight: 600; color: var(--primary);">⚙️ Settings</a>
     <span>|</span>
-    <a href="https://github.com/kreier/wifi" target="_blank">Repository (kreier/wifi v1.1.4)</a>
+    <a href="https://github.com/kreier/wifi" target="_blank">Repository (kreier/wifi v1.1.8)</a>
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -2032,14 +2268,14 @@ export function renderDashboardHtml(): string {
     }
 
     function initTheme() {
-      const saved = localStorage.getItem("wifi_theme") || localStorage.getItem("t18_theme");
+      const saved = localStorage.getItem("t18_theme") || localStorage.getItem("wifi_theme");
       const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
       applyTheme(saved || (prefersDark ? "dark" : "light"));
     }
 
     function applyTheme(theme) {
       document.documentElement.setAttribute("data-theme", theme);
-      localStorage.setItem("wifi_theme", theme);
+      localStorage.setItem("t18_theme", theme);
       localStorage.setItem("wifi_theme", theme);
       const icon = document.getElementById("themeIcon");
       if (icon) {
@@ -2060,8 +2296,8 @@ export function renderDashboardHtml(): string {
     }
 
     // Detect if running on GitHub Pages
-    const isGhPages = window.location.pathname.startsWith("/T18") || window.location.pathname.startsWith("/wifi");
-    const basePath = window.location.pathname.startsWith("/T18") ? "/T18/" : (window.location.pathname.startsWith("/wifi") ? "/wifi/" : "/");
+    const isGhPages = window.location.pathname.startsWith("/wifi") || window.location.pathname.startsWith("/T18");
+    const basePath = window.location.pathname.startsWith("/wifi") ? "/wifi/" : (window.location.pathname.startsWith("/T18") ? "/T18/" : "/");
     document.getElementById("brandLink").href = basePath;
     document.getElementById("hostIndicator").innerText = isGhPages ? "GitHub Pages" : "Cloudflare Worker";
 
@@ -2127,47 +2363,123 @@ export function renderDashboardHtml(): string {
       }
     }
 
+    let currentFlashTarget = "esp32";
     let currentFlashMode = "update";
-    window.setFlashMode = function(mode) {
-      currentFlashMode = mode;
-      const installBtn = document.getElementById("espWebInstallBtn");
-      const activateBtn = document.getElementById("espActivateBtn");
-      const lblUpdate = document.getElementById("modeUpdateLabel");
-      const lblClean = document.getElementById("modeCleanLabel");
 
-      if (mode === "update") {
-        if (installBtn) installBtn.setAttribute("manifest", basePath + "manifest-update.json");
-        if (activateBtn) activateBtn.innerHTML = "⚡ Connect ESP32 &amp; Update Firmware (Keep Settings)";
-        if (lblUpdate) {
-          lblUpdate.style.border = "2px solid var(--accent)";
-          lblUpdate.style.background = "rgba(56,189,248,0.08)";
-        }
-        if (lblClean) {
-          lblClean.style.border = "1px solid var(--border)";
-          lblClean.style.background = "transparent";
-        }
-      } else {
-        if (installBtn) installBtn.setAttribute("manifest", basePath + "manifest.json");
-        if (activateBtn) activateBtn.innerHTML = "🧹 Connect ESP32 &amp; Clean Install";
-        if (lblClean) {
-          lblClean.style.border = "2px solid var(--accent)";
-          lblClean.style.background = "rgba(56,189,248,0.08)";
-        }
-        if (lblUpdate) {
-          lblUpdate.style.border = "1px solid var(--border)";
-          lblUpdate.style.background = "transparent";
-        }
-      }
+    window.setFlashTarget = function(target) {
+      currentFlashTarget = target;
+      updateFlasherUI();
     };
 
+    window.setFlashMode = function(mode) {
+      currentFlashMode = mode;
+      updateFlasherUI();
+    };
+
+    function updateFlasherUI() {
+      const installBtn = document.getElementById("espWebInstallBtn");
+      const activateBtn = document.getElementById("espActivateBtn");
+      const lblTargetEsp32 = document.getElementById("targetEsp32Label");
+      const lblTargetC3 = document.getElementById("targetC3Label");
+      const lblModeUpdate = document.getElementById("modeUpdateLabel");
+      const lblModeClean = document.getElementById("modeCleanLabel");
+      const summaryTarget = document.getElementById("summaryTargetName");
+      const summaryMode = document.getElementById("summaryModeName");
+      const summaryManifest = document.getElementById("summaryManifestName");
+
+      const isC3 = (currentFlashTarget === "c3");
+      const isClean = (currentFlashMode === "clean");
+
+      // Update styling for Step 1 (Target Architecture)
+      if (isC3) {
+        if (lblTargetC3) {
+          lblTargetC3.style.border = "2px solid var(--accent)";
+          lblTargetC3.style.background = "rgba(56,189,248,0.08)";
+        }
+        if (lblTargetEsp32) {
+          lblTargetEsp32.style.border = "1px solid var(--border)";
+          lblTargetEsp32.style.background = "transparent";
+        }
+      } else {
+        if (lblTargetEsp32) {
+          lblTargetEsp32.style.border = "2px solid var(--accent)";
+          lblTargetEsp32.style.background = "rgba(56,189,248,0.08)";
+        }
+        if (lblTargetC3) {
+          lblTargetC3.style.border = "1px solid var(--border)";
+          lblTargetC3.style.background = "transparent";
+        }
+      }
+
+      // Update styling for Step 2 (Flashing Mode)
+      if (isClean) {
+        if (lblModeClean) {
+          lblModeClean.style.border = "2px solid var(--accent)";
+          lblModeClean.style.background = "rgba(56,189,248,0.08)";
+        }
+        if (lblModeUpdate) {
+          lblModeUpdate.style.border = "1px solid var(--border)";
+          lblModeUpdate.style.background = "transparent";
+        }
+      } else {
+        if (lblModeUpdate) {
+          lblModeUpdate.style.border = "2px solid var(--accent)";
+          lblModeUpdate.style.background = "rgba(56,189,248,0.08)";
+        }
+        if (lblModeClean) {
+          lblModeClean.style.border = "1px solid var(--border)";
+          lblModeClean.style.background = "transparent";
+        }
+      }
+
+      let manifestFile = "";
+      let buttonHtml = "";
+
+      if (isC3) {
+        if (isClean) {
+          manifestFile = "manifest-c3.json";
+          buttonHtml = "🧹 Connect ESP32-C3 &amp; Clean Install";
+        } else {
+          manifestFile = "manifest-c3-update.json";
+          buttonHtml = "⚡ Connect ESP32-C3 &amp; Update Firmware (Keep Settings)";
+        }
+      } else {
+        if (isClean) {
+          manifestFile = "manifest-esp32.json";
+          buttonHtml = "🧹 Connect ESP32 &amp; Clean Install";
+        } else {
+          manifestFile = "manifest-esp32-update.json";
+          buttonHtml = "⚡ Connect ESP32 &amp; Update Firmware (Keep Settings)";
+        }
+      }
+
+      if (summaryTarget) summaryTarget.innerText = isC3 ? "ESP32-C3 Super Mini (RISC-V)" : "Standard ESP32 (Xtensa)";
+      if (summaryMode) summaryMode.innerText = isClean ? "Clean Install (Full Flash)" : "Update Firmware (Keep Settings)";
+      if (summaryManifest) summaryManifest.innerText = manifestFile;
+
+      const wrapper = document.querySelector(".install-button-wrapper");
+      if (wrapper) {
+        const fullManifestPath = basePath + manifestFile;
+        wrapper.innerHTML = '<esp-web-install-button id="espWebInstallBtn" manifest="' + fullManifestPath + '">' +
+          '<button slot="activate" id="espActivateBtn" class="flash-btn primary" style="font-size:1.05rem;padding:0.85rem 1.75rem;border-radius:0.5rem;box-shadow:0 4px 14px rgba(56,189,248,0.3);display:inline-flex;align-items:center;gap:0.5rem;cursor:pointer;">' +
+            buttonHtml +
+          '</button>' +
+        '</esp-web-install-button>';
+      }
+    }
+
     function updateFlashManifestUrls() {
-      window.setFlashMode(currentFlashMode);
+      updateFlasherUI();
       const links = [
         { id: "dlFirmwareBin", file: "firmware.bin" },
         { id: "dlPartitionsBin", file: "partitions.bin" },
         { id: "dlBootloaderBin", file: "bootloader.bin" },
         { id: "dlBootApp0Bin", file: "boot_app0.bin" },
-        { id: "dlMergedBin", file: "firmware-esp32-merged.bin" }
+        { id: "dlMergedBin", file: "firmware-esp32-merged.bin" },
+        { id: "dlC3FirmwareBin", file: "firmware-c3.bin" },
+        { id: "dlC3PartitionsBin", file: "partitions-c3.bin" },
+        { id: "dlC3BootloaderBin", file: "bootloader-c3.bin" },
+        { id: "dlC3MergedBin", file: "firmware-esp32c3-merged.bin" }
       ];
       links.forEach(function(l) {
         const el = document.getElementById(l.id);
@@ -2187,19 +2499,19 @@ export function renderDashboardHtml(): string {
 
     // --- Settings & Admin Panel Management ---
     function getAdminToken() {
-      return localStorage.getItem("wifi_admin_token") || localStorage.getItem("t18_admin_token") || "";
+      return localStorage.getItem("t18_admin_token") || "";
     }
 
     function setAdminToken(token) {
       if (token) {
-        localStorage.setItem("wifi_admin_token", token);
+        localStorage.setItem("t18_admin_token", token);
       } else {
-        localStorage.removeItem("wifi_admin_token");
+        localStorage.removeItem("t18_admin_token");
       }
     }
 
     function clearAdminToken() {
-      localStorage.removeItem("wifi_admin_token");
+      localStorage.removeItem("t18_admin_token");
     }
 
     function getAdminAuthHeaders() {
@@ -2350,14 +2662,17 @@ export function renderDashboardHtml(): string {
 
     function switchAdminTab(tab) {
       currentAdminTab = tab;
-      const tabs = ["stations", "heatmap", "db", "cleanup"];
+      const tabs = ["stations", "heatmap", "db", "cleanup", "outliers"];
       tabs.forEach(function(t) {
         const cap = t.charAt(0).toUpperCase() + t.slice(1);
         const el = document.getElementById("adminTab" + cap);
         const btn = document.getElementById("tabBtnAdmin" + cap);
-        if (el) el.style.display = (t === tab) ? ((t === "heatmap" || t === "db" || t === "cleanup") ? "flex" : "block") : "none";
+        if (el) el.style.display = (t === tab) ? ((t === "heatmap" || t === "db" || t === "cleanup" || t === "outliers") ? "flex" : "block") : "none";
         if (btn) btn.classList.toggle("active", t === tab);
       });
+      if (tab === "outliers") {
+        scanDatabaseOutliers();
+      }
     }
 
     async function loadAdminOverview(stationFilter) {
@@ -2378,13 +2693,7 @@ export function renderDashboardHtml(): string {
           return;
         }
         const data = await res.json();
-        if (!data.success) {
-          const dbText = document.getElementById("dbTotalSizeText");
-          if (dbText) dbText.innerText = "Error: " + (data.error || "Failed to load metrics");
-          const tbody = document.getElementById("adminStationsTableBody");
-          if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:1.25rem;">Failed to load database overview: ' + escapeHtml(data.error || "Database error") + '</td></tr>';
-          return;
-        }
+        if (!data.success) return;
 
         adminOverviewData = data;
 
@@ -2402,10 +2711,6 @@ export function renderDashboardHtml(): string {
 
       } catch (err) {
         console.error("Failed to load admin overview:", err);
-        const dbText = document.getElementById("dbTotalSizeText");
-        if (dbText) dbText.innerText = "Connection error";
-        const tbody = document.getElementById("adminStationsTableBody");
-        if (tbody) tbody.innerHTML = '<tr><td colspan="7" style="text-align:center; color:var(--danger); padding:1.25rem;">Could not connect to database endpoint: ' + escapeHtml(err.message || String(err)) + '</td></tr>';
       }
     }
 
@@ -2443,6 +2748,24 @@ export function renderDashboardHtml(): string {
           clnSel.value = prevVal;
         } else {
           clnSel.value = "all";
+        }
+      }
+
+      // Outlier station select
+      const outSel = document.getElementById("outlierStationSelect");
+      if (outSel) {
+        const prevVal = outSel.value || "all";
+        outSel.innerHTML = '<option value="all">All Stations (Fleet-Wide)</option>';
+        (stations || []).forEach(function(st) {
+          const opt = document.createElement("option");
+          opt.value = st.station_id;
+          opt.innerText = st.station_id + (st.description ? " (" + st.description + ")" : "");
+          outSel.appendChild(opt);
+        });
+        if (prevVal && Array.from(outSel.options).some(function(o) { return o.value === prevVal; })) {
+          outSel.value = prevVal;
+        } else {
+          outSel.value = "all";
         }
       }
     }
@@ -2486,34 +2809,112 @@ export function renderDashboardHtml(): string {
       }).join("");
     }
 
-    function onEditStationBtnClick(btn) {
-      const stationId = btn.getAttribute("data-station");
-      if (!stationId) return;
-      const st = (adminOverviewData && adminOverviewData.stations)
-        ? adminOverviewData.stations.find(function(s) { return s.station_id === stationId; })
-        : null;
-      editStationConfig(stationId, st ? (st.description || "") : "", st ? !!st.is_canary : false, st ? (st.target_version || "") : "");
+    function isFirmwareAtLeast(fw, target) {
+      if (!fw) return false;
+      const cleanFw = String(fw).replace(/^v/, "").split("-")[0];
+      const cleanTarget = String(target).replace(/^v/, "").split("-")[0];
+      const p1 = cleanFw.split(".").map(function(n) { return parseInt(n, 10) || 0; });
+      const p2 = cleanTarget.split(".").map(function(n) { return parseInt(n, 10) || 0; });
+      for (let i = 0; i < Math.max(p1.length, p2.length); i++) {
+        const v1 = p1[i] || 0;
+        const v2 = p2[i] || 0;
+        if (v1 > v2) return true;
+        if (v1 < v2) return false;
+      }
+      return true;
     }
 
-    function onDeleteStationBtnClick(btn) {
-      const stationId = btn.getAttribute("data-station");
-      if (!stationId) return;
-      deleteStationPrompt(stationId);
+    function openStationConfigFromBanner() {
+      if (!currentStationId) return;
+      if (!getAdminToken()) {
+        openSettingsModal();
+        const loginErr = document.getElementById("adminLoginError");
+        if (loginErr) {
+          loginErr.innerText = "Please log in with administrator credentials to configure station settings.";
+          loginErr.style.display = "block";
+        }
+        return;
+      }
+      openEditStationModal(currentStationId);
     }
 
-    async function editStationConfig(stationId, currentDesc, isCanary, currentTarget) {
-      const newDesc = prompt("Update station description for '" + stationId + "':", currentDesc);
-      if (newDesc === null) return;
+    function openEditStationModal(stationId) {
+      if (!stationId) return;
+      const modal = document.getElementById("editStationModal");
+      if (!modal) return;
 
-      const newCanary = confirm([
-        "Enable Canary OTA channel for '" + stationId + "'?",
-        "",
-        "- Click OK for CANARY (receives pre-release candidate firmware)",
-        "- Click Cancel for STABLE (receives stable releases)"
-      ].join(String.fromCharCode(10)));
+      // Find station details
+      let st = null;
+      if (adminOverviewData && adminOverviewData.stations) {
+        st = adminOverviewData.stations.find(function(s) { return s.station_id === stationId; });
+      }
+      if (!st && currentStationData && currentStationData.station && currentStationData.station.station_id === stationId) {
+        st = currentStationData.station;
+      }
 
-      const newTarget = prompt("Force specific OTA target version (e.g. '1.1.4' or leave blank to follow channel default):", currentTarget);
-      if (newTarget === null) return;
+      document.getElementById("editStationIdBadge").innerText = stationId;
+      document.getElementById("editStationDescInput").value = st ? (st.description || "") : "";
+      
+      const fw = st ? (st.firmware_version || "") : "";
+      document.getElementById("editStationFwDisplay").innerText = fw ? ("v" + fw) : "Unknown";
+      document.getElementById("editStationBoardDisplay").innerText = st ? (st.board_type || "Standard ESP32") : "Standard ESP32";
+
+      const canaryBox = document.getElementById("editStationCanaryCheckbox");
+      const canaryWarn = document.getElementById("editStationCanaryWarning");
+      const canaryNeeded = document.getElementById("editStationCanaryFwNeeded");
+
+      const supportsCanary = isFirmwareAtLeast(fw, "1.1.4");
+      if (!supportsCanary) {
+        canaryBox.disabled = true;
+        canaryBox.checked = false;
+        canaryBox.style.cursor = "not-allowed";
+        if (canaryNeeded) canaryNeeded.innerText = fw ? ("v" + fw) : "v1.1.3";
+        if (canaryWarn) canaryWarn.style.display = "block";
+      } else {
+        canaryBox.disabled = false;
+        canaryBox.checked = st ? !!st.is_canary : false;
+        canaryBox.style.cursor = "pointer";
+        if (canaryWarn) canaryWarn.style.display = "none";
+      }
+
+      document.getElementById("editStationTargetInput").value = st ? (st.target_version || "") : "";
+
+      const errBox = document.getElementById("editStationError");
+      if (errBox) errBox.style.display = "none";
+
+      modal.classList.add("active");
+      document.body.style.overflow = "hidden";
+    }
+
+    function closeEditStationModal() {
+      const modal = document.getElementById("editStationModal");
+      if (modal) {
+        modal.classList.remove("active");
+        document.body.style.overflow = "";
+      }
+    }
+
+    function onEditStationBackdropClick(e) {
+      if (e.target && e.target.id === "editStationModal") {
+        closeEditStationModal();
+      }
+    }
+
+    async function submitEditStationModal() {
+      const stationId = document.getElementById("editStationIdBadge").innerText;
+      const desc = document.getElementById("editStationDescInput").value.trim();
+      const canaryBox = document.getElementById("editStationCanaryCheckbox");
+      const isCanary = canaryBox.disabled ? false : canaryBox.checked;
+      const targetVer = document.getElementById("editStationTargetInput").value.trim();
+      const errBox = document.getElementById("editStationError");
+      const saveBtn = document.getElementById("editStationSaveBtn");
+
+      if (!stationId) return;
+      if (saveBtn) {
+        saveBtn.disabled = true;
+        saveBtn.innerText = "Saving...";
+      }
+      if (errBox) errBox.style.display = "none";
 
       try {
         const res = await fetch(API_BASE + "/api/admin/station/update", {
@@ -2521,22 +2922,46 @@ export function renderDashboardHtml(): string {
           headers: getAdminAuthHeaders(),
           body: JSON.stringify({
             station_id: stationId,
-            description: newDesc.trim(),
-            is_canary: newCanary,
-            target_version: newTarget.trim() || null
+            description: desc,
+            is_canary: isCanary,
+            target_version: targetVer || null
           })
         });
         const data = await res.json();
         if (res.ok && data.success) {
-          alert(data.message || "Station updated successfully!");
-          loadAdminOverview();
-          loadStations();
+          closeEditStationModal();
+          if (typeof loadAdminOverview === "function") loadAdminOverview();
+          if (typeof loadStations === "function") loadStations();
+          if (currentStationId === stationId) loadStationDetails(stationId);
         } else {
-          alert("Error updating station: " + (data.error || "Unknown error"));
+          if (errBox) {
+            errBox.innerText = data.error || "Failed to update station settings";
+            errBox.style.display = "block";
+          } else {
+            alert("Error: " + (data.error || "Unknown error"));
+          }
         }
       } catch (err) {
-        alert("Failed to communicate with admin endpoint.");
+        if (errBox) {
+          errBox.innerText = "Failed to communicate with admin endpoint.";
+          errBox.style.display = "block";
+        }
+      } finally {
+        if (saveBtn) {
+          saveBtn.disabled = false;
+          saveBtn.innerText = "Save Changes";
+        }
       }
+    }
+
+    function onEditStationBtnClick(btn) {
+      const stationId = btn.getAttribute("data-station");
+      if (!stationId) return;
+      openEditStationModal(stationId);
+    }
+
+    function editStationConfig(stationId) {
+      openEditStationModal(stationId);
     }
 
     async function deleteStationPrompt(stationId) {
@@ -2804,6 +3229,233 @@ export function renderDashboardHtml(): string {
           }
         } else {
           alert("Cleanup failed: " + (data.error || "Unknown error"));
+        }
+      } catch (err) {
+        alert("Failed to communicate with admin endpoint.");
+      }
+    }
+
+    let detectedOutliers = [];
+
+    async function scanDatabaseOutliers() {
+      const token = getAdminToken();
+      if (!token) return;
+
+      const stSel = document.getElementById("outlierStationSelect");
+      const stationId = stSel ? stSel.value : "all";
+      const tbody = document.getElementById("adminOutliersTableBody");
+      const banner = document.getElementById("outliersStatusBanner");
+      const purgeBtn = document.getElementById("btnPurgeAllOutliers");
+      const delSelBtn = document.getElementById("btnDeleteSelectedOutliers");
+      const subTitle = document.getElementById("outliersTableSubtitle");
+
+      if (tbody) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:1.5rem;">Scanning database tables for anomalies...</td></tr>';
+      }
+
+      try {
+        const res = await fetch(API_BASE + "/api/admin/outliers?station_id=" + encodeURIComponent(stationId), {
+          headers: getAdminAuthHeaders()
+        });
+        if (res.status === 401) {
+          clearAdminToken();
+          showAdminLoginView("Session expired. Please log in again.");
+          return;
+        }
+        const data = await res.json();
+        if (!data.success) {
+          if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#ef4444; padding:1.5rem;">Scan failed: ' + escapeHtml(data.error || "Unknown error") + '</td></tr>';
+          return;
+        }
+
+        detectedOutliers = data.outliers || [];
+
+        if (subTitle) {
+          subTitle.innerText = "Found " + detectedOutliers.length + " anomaly record" + (detectedOutliers.length === 1 ? "" : "s");
+        }
+
+        if (banner) {
+          banner.style.display = "block";
+          if (detectedOutliers.length === 0) {
+            banner.style.background = "rgba(16, 185, 129, 0.1)";
+            banner.style.border = "1px solid rgba(16, 185, 129, 0.25)";
+            banner.style.color = "#6ee7b7";
+            banner.innerHTML = "✅ <strong>Clean Database:</strong> No outliers or corrupted telemetry records detected for " + (stationId === "all" ? "the entire fleet" : "station " + escapeHtml(stationId)) + ".";
+          } else {
+            banner.style.background = "rgba(239, 68, 68, 0.1)";
+            banner.style.border = "1px solid rgba(239, 68, 68, 0.25)";
+            banner.style.color = "#fca5a5";
+            banner.innerHTML = "⚠️ <strong>Anomalies Detected:</strong> Found <strong>" + detectedOutliers.length + "</strong> outlier records exceeding realistic hardware thresholds.";
+          }
+        }
+
+        if (purgeBtn) purgeBtn.style.display = detectedOutliers.length > 0 ? "inline-flex" : "none";
+        if (delSelBtn) delSelBtn.style.display = "none";
+        const selAll = document.getElementById("selectAllOutliers");
+        if (selAll) selAll.checked = false;
+
+        renderOutliersTable(detectedOutliers);
+      } catch (err) {
+        console.error("Scan outliers failed:", err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#ef4444; padding:1.5rem;">Failed to connect to backend outlier scanner.</td></tr>';
+      }
+    }
+
+    function renderOutliersTable(outliers) {
+      const tbody = document.getElementById("adminOutliersTableBody");
+      if (!tbody) return;
+
+      if (!outliers || outliers.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:1.5rem;">✅ No telemetry outliers found. Database records are healthy.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = "";
+      outliers.forEach(function(item, idx) {
+        const tr = document.createElement("tr");
+
+        const sevBadge = item.severity === "critical"
+          ? '<span class="status-badge" style="background:rgba(239,68,68,0.2); color:#ef4444; border:1px solid rgba(239,68,68,0.4);">CRITICAL</span>'
+          : '<span class="status-badge" style="background:rgba(245,158,11,0.2); color:#f59e0b; border:1px solid rgba(245,158,11,0.4);">WARNING</span>';
+
+        tr.innerHTML = 
+          '<td style="text-align:center;"><input type="checkbox" class="outlier-row-chk" data-idx="' + idx + '" onchange="updateSelectedOutliersCount()" /></td>' +
+          '<td><strong style="color:var(--text-main);">' + escapeHtml(item.station_id) + '</strong></td>' +
+          '<td style="font-size:0.75rem; color:var(--text-muted); white-space:nowrap;">' + escapeHtml(item.date_formatted) + '</td>' +
+          '<td><span style="font-size:0.775rem; color:var(--primary); font-family:monospace;">' + escapeHtml(item.metric) + '</span><div style="font-size:0.68rem; color:var(--text-muted);">' + escapeHtml(item.table) + '</div></td>' +
+          '<td><strong style="color:#ef4444; font-size:0.85rem;">' + escapeHtml(item.value) + '</strong></td>' +
+          '<td style="font-size:0.75rem; color:var(--text-muted); max-width:260px;">' + escapeHtml(item.reason) + '</td>' +
+          '<td>' + sevBadge + '</td>' +
+          '<td><button class="admin-btn danger" style="padding:0.25rem 0.5rem; font-size:0.7rem;" onclick="deleteSingleOutlier(' + idx + ')">Delete</button></td>';
+
+        tbody.appendChild(tr);
+      });
+    }
+
+    function toggleSelectAllOutliers(checked) {
+      const chks = document.querySelectorAll(".outlier-row-chk");
+      chks.forEach(function(c) { c.checked = checked; });
+      updateSelectedOutliersCount();
+    }
+
+    function updateSelectedOutliersCount() {
+      const chks = document.querySelectorAll(".outlier-row-chk:checked");
+      const cnt = chks.length;
+      const countSpan = document.getElementById("selectedOutliersCount");
+      const delBtn = document.getElementById("btnDeleteSelectedOutliers");
+      if (countSpan) countSpan.innerText = cnt;
+      if (delBtn) delBtn.style.display = cnt > 0 ? "inline-flex" : "none";
+    }
+
+    async function deleteSingleOutlier(idx) {
+      const item = detectedOutliers[idx];
+      if (!item) return;
+
+      if (!confirm("Are you sure you want to permanently delete this outlier record for " + item.station_id + " (" + item.metric + ": " + item.value + ")?")) {
+        return;
+      }
+
+      try {
+        const res = await fetch(API_BASE + "/api/admin/outliers/delete", {
+          method: "POST",
+          headers: getAdminAuthHeaders(),
+          body: JSON.stringify({
+            items: [{
+              table: item.table,
+              id: item.id,
+              station_id: item.station_id,
+              timestamp: item.timestamp
+            }]
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert("Record deleted successfully.");
+          scanDatabaseOutliers();
+          loadAdminOverview();
+          if (currentStationId) {
+            loadStationDetails(currentStationId);
+          }
+        } else {
+          alert("Deletion failed: " + (data.error || "Unknown error"));
+        }
+      } catch (err) {
+        alert("Failed to communicate with admin endpoint.");
+      }
+    }
+
+    async function deleteSelectedOutliers() {
+      const chks = document.querySelectorAll(".outlier-row-chk:checked");
+      if (chks.length === 0) return;
+
+      const items = [];
+      chks.forEach(function(chk) {
+        const idx = parseInt(chk.getAttribute("data-idx"), 10);
+        if (!isNaN(idx) && detectedOutliers[idx]) {
+          const item = detectedOutliers[idx];
+          items.push({
+            table: item.table,
+            id: item.id,
+            station_id: item.station_id,
+            timestamp: item.timestamp
+          });
+        }
+      });
+
+      if (!confirm("Are you sure you want to permanently delete " + items.length + " selected outlier record(s)?")) {
+        return;
+      }
+
+      try {
+        const res = await fetch(API_BASE + "/api/admin/outliers/delete", {
+          method: "POST",
+          headers: getAdminAuthHeaders(),
+          body: JSON.stringify({ items: items })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(data.message || "Selected records deleted successfully.");
+          scanDatabaseOutliers();
+          loadAdminOverview();
+          if (currentStationId) {
+            loadStationDetails(currentStationId);
+          }
+        } else {
+          alert("Deletion failed: " + (data.error || "Unknown error"));
+        }
+      } catch (err) {
+        alert("Failed to communicate with admin endpoint.");
+      }
+    }
+
+    async function purgeAllOutliersAction() {
+      const stSel = document.getElementById("outlierStationSelect");
+      const stationId = stSel ? stSel.value : "all";
+      const targetStr = stationId === "all" ? "ALL stations fleet-wide" : "station " + stationId;
+
+      if (!confirm("Are you sure you want to purge ALL detected outlier records (" + detectedOutliers.length + ") for " + targetStr + "? This cannot be undone.")) {
+        return;
+      }
+
+      try {
+        const res = await fetch(API_BASE + "/api/admin/outliers/delete", {
+          method: "POST",
+          headers: getAdminAuthHeaders(),
+          body: JSON.stringify({
+            purge_all: true,
+            station_id: stationId
+          })
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          alert(data.message || "All outlier records purged successfully.");
+          scanDatabaseOutliers();
+          loadAdminOverview();
+          if (currentStationId) {
+            loadStationDetails(currentStationId);
+          }
+        } else {
+          alert("Purge failed: " + (data.error || "Unknown error"));
         }
       } catch (err) {
         alert("Failed to communicate with admin endpoint.");
@@ -3219,43 +3871,10 @@ export function renderDashboardHtml(): string {
         }
 
         // 3b. Render Previously Detected Networks (Inactive)
-        const inactiveSection = document.getElementById("inactiveSurveySection");
-        const inactiveBody = document.getElementById("inactiveSurveyBody");
-        if (inactiveBody) inactiveBody.innerHTML = "";
-        if (inactive.length > 0 && inactiveSection && inactiveBody) {
-          inactiveSection.style.display = "block";
-          document.getElementById("inactiveCountBadge").innerText = inactive.length + " Missing";
-          inactive.forEach(s => {
-            const tr = document.createElement("tr");
-            tr.style.opacity = "0.78";
-            const rssi = (s.rssi !== null && s.rssi !== undefined) ? s.rssi : null;
-            const q = (s.quality !== null && s.quality !== undefined) ? s.quality : (rssi !== null ? Math.min(100, Math.max(0, 2 * (rssi + 100))) : null);
-            const barColor = rssi !== null ? (rssi >= -65 ? "#10b981" : (rssi >= -80 ? "#f59e0b" : "#ef4444")) : "#9ca3af";
-
-            tr.innerHTML = \`
-              <td style="font-weight: 500; color: var(--text-muted);">\${s.ssid}</td>
-              <td style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">\${s.bssid || "N/A"}</td>
-              <td>
-                \${rssi !== null ? \`
-                <div class="rssi-bar-wrap">
-                  <div class="rssi-bar"><div class="rssi-fill" style="width: \${q}%; background: \${barColor};"></div></div>
-                  <span title="Max signal recorded">\${rssi} dBm</span>
-                </div>\` : '<span style="color: var(--text-muted);">—</span>'}
-              </td>
-              <td>\${q !== null ? q + '%' : '<span style="color: var(--text-muted);">—</span>'}</td>
-              <td>Ch \${s.channel || "?"}</td>
-              <td><span style="background:var(--badge-bg); color: var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.75rem;">\${s.phy_mode || 'WIFI_4'}</span></td>
-              <td style="color: var(--text-muted);">\${s.encryption || 'Open'}</td>
-              <td><span title="\${s.last_seen ? new Date(s.last_seen * 1000).toLocaleString() : ''}" style="color: #f59e0b; font-size: 0.75rem; font-weight: 500;">\${formatLastSeen(s.last_seen)}</span></td>
-            \`;
-            inactiveBody.appendChild(tr);
-          });
-        } else if (inactiveSection) {
-          inactiveSection.style.display = "none";
-        }
+        currentStationData = data;
+        renderInactiveTable();
 
         // 4. Update Network Selector & Trend Charts
-        currentStationData = data;
         const history = data.recent_history || [];
         const latest = data.latest_measurements || [];
         const netSet = new Set();
@@ -3528,8 +4147,12 @@ export function renderDashboardHtml(): string {
 
     function renderAllTrendCharts() {
       if (!currentStationData) return;
-      const history = currentStationData.recent_history || [];
+      const rawHistory = currentStationData.recent_history || [];
       const latest = currentStationData.latest_measurements || [];
+
+      const nowSec = Math.floor(Date.now() / 1000);
+      const cutoffSec = nowSec - (selectedLatencyTimeframe * 3600);
+      const history = rawHistory.filter(h => h.timestamp >= cutoffSec);
 
       const netSet = new Set();
       latest.forEach(m => { if (m.ssid) netSet.add(m.ssid); });
@@ -3557,8 +4180,12 @@ export function renderDashboardHtml(): string {
       });
 
       const sortedBuckets = Array.from(bucketMap.keys()).sort((a, b) => a - b);
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
       const labels = sortedBuckets.map(bKey => {
         const d = new Date(bKey * 1000);
+        if (selectedLatencyTimeframe > 24) {
+          return daysOfWeek[d.getDay()] + ' ' + d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+        }
         return d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
       });
 
@@ -3576,6 +4203,9 @@ export function renderDashboardHtml(): string {
       if (!ctx) return;
 
       const datasets = [];
+
+      const ptRadius = sortedBuckets.length > 70 ? (sortedBuckets.length > 200 ? 0 : 1) : 2;
+      const bWidth = sortedBuckets.length > 200 ? 1.5 : 2;
 
       TARGET_CONFIG.forEach(target => {
         const data = sortedBuckets.map(bKey => {
@@ -3597,8 +4227,8 @@ export function renderDashboardHtml(): string {
           backgroundColor: target.bg,
           tension: 0.3,
           spanGaps: true,
-          pointRadius: 2,
-          borderWidth: 2
+          pointRadius: ptRadius,
+          borderWidth: bWidth
         });
       });
 
@@ -3623,8 +4253,8 @@ export function renderDashboardHtml(): string {
         borderDash: [5, 5],
         tension: 0.3,
         spanGaps: true,
-        pointRadius: 2,
-        borderWidth: 1.5
+        pointRadius: ptRadius,
+        borderWidth: sortedBuckets.length > 200 ? 1 : 1.5
       });
 
       if (mainChartInstance) {
@@ -3689,8 +4319,8 @@ export function renderDashboardHtml(): string {
             backgroundColor: 'transparent',
             tension: 0.3,
             spanGaps: true,
-            pointRadius: 2,
-            borderWidth: 1.8
+            pointRadius: sortedBuckets.length > 70 ? (sortedBuckets.length > 200 ? 0 : 1) : 2,
+            borderWidth: sortedBuckets.length > 200 ? 1.5 : 1.8
           });
         });
       } else {
@@ -3716,8 +4346,8 @@ export function renderDashboardHtml(): string {
           fill: true,
           tension: 0.3,
           spanGaps: true,
-          pointRadius: 2,
-          borderWidth: 2
+          pointRadius: sortedBuckets.length > 70 ? (sortedBuckets.length > 200 ? 0 : 1) : 2,
+          borderWidth: sortedBuckets.length > 200 ? 1.5 : 2
         });
       }
 
@@ -3821,17 +4451,114 @@ export function renderDashboardHtml(): string {
       if (icon) icon.innerText = isHidden ? "▼" : "▶";
     }
 
-    let selectedChannelTimeframe = 24;
+    let currentInactiveView = "24h";
+
+    function switchInactiveView(view) {
+      currentInactiveView = view;
+      const b24 = document.getElementById("btnInactive24h");
+      const bAll = document.getElementById("btnInactiveAll");
+      if (b24) b24.classList.toggle("active", view === "24h");
+      if (bAll) bAll.classList.toggle("active", view === "all");
+      const sub = document.getElementById("inactiveSubtext");
+      if (sub) {
+        sub.innerText = (view === "24h")
+          ? "Showing discovered APs absent from latest cycle (last 24 hours)"
+          : "Showing complete catalog of all Wi-Fi networks ever discovered by this station";
+      }
+      renderInactiveTable();
+    }
+
+    function renderInactiveTable() {
+      if (!currentStationData) return;
+      const inactive = (currentInactiveView === "all")
+        ? (currentStationData.all_discovered_aps || [])
+        : (currentStationData.inactive_survey || []);
+      const inactiveSection = document.getElementById("inactiveSurveySection");
+      const inactiveBody = document.getElementById("inactiveSurveyBody");
+      const countBadge = document.getElementById("inactiveCountBadge");
+
+      if (inactiveBody) inactiveBody.innerHTML = "";
+      if (inactive.length > 0 && inactiveSection && inactiveBody) {
+        inactiveSection.style.display = "block";
+        if (countBadge) {
+          countBadge.innerText = (currentInactiveView === "all")
+            ? (inactive.length + " Discovered")
+            : (inactive.length + " Missing");
+        }
+        inactive.forEach(function(s) {
+          const tr = document.createElement("tr");
+          tr.style.opacity = "0.78";
+          const rssi = (s.rssi !== null && s.rssi !== undefined) ? s.rssi : null;
+          const q = (s.quality !== null && s.quality !== undefined) ? s.quality : (rssi !== null ? Math.min(100, Math.max(0, 2 * (rssi + 100))) : null);
+          const barColor = rssi !== null ? (rssi >= -65 ? "#10b981" : (rssi >= -80 ? "#f59e0b" : "#ef4444")) : "#9ca3af";
+
+          tr.innerHTML = 
+            '<td style="font-weight: 500; color: var(--text-muted);">' + escapeHtml(s.ssid || "<Hidden>") + '</td>' +
+            '<td style="font-family: monospace; font-size: 0.8rem; color: var(--text-muted);">' + escapeHtml(s.bssid || "N/A") + '</td>' +
+            '<td>' + (rssi !== null ? (
+              '<div class="rssi-bar-wrap">' +
+                '<div class="rssi-bar"><div class="rssi-fill" style="width: ' + q + '%; background: ' + barColor + ';"></div></div>' +
+                '<span title="Max signal recorded">' + rssi + ' dBm</span>' +
+              '</div>'
+            ) : '<span style="color: var(--text-muted);">—</span>') + '</td>' +
+            '<td>' + (q !== null ? (q + '%') : '<span style="color: var(--text-muted);">—</span>') + '</td>' +
+            '<td>Ch ' + (s.channel || "?") + '</td>' +
+            '<td><span style="background:var(--badge-bg); color: var(--text-muted); padding:2px 6px; border-radius:4px; font-size:0.75rem;">' + escapeHtml(s.phy_mode || 'WIFI_4') + '</span></td>' +
+            '<td style="color: var(--text-muted);">' + escapeHtml(s.encryption || 'Open') + '</td>' +
+            '<td><span title="' + (s.last_seen ? new Date(s.last_seen * 1000).toLocaleString() : '') + '" style="color: #f59e0b; font-size: 0.75rem; font-weight: 500;">' + formatLastSeen(s.last_seen) + '</span></td>';
+
+          inactiveBody.appendChild(tr);
+        });
+      } else if (inactiveSection) {
+        if (currentInactiveView === "all") {
+          inactiveBody.innerHTML = '<tr><td colspan="8" style="text-align:center; color:var(--text-muted); padding:1rem;">No historical networks stored in D1.</td></tr>';
+        } else {
+          inactiveSection.style.display = "none";
+        }
+      }
+    }
+
+    let selectedChannelTimeframe = 24; // 24, 48, or 168 (7d)
     function setChannelTimeframe(hours) {
       selectedChannelTimeframe = hours;
-      [24, 48, 168].forEach(function(h) {
+      [24, 48, 168].forEach(h => {
         const btn = document.getElementById("btnTf" + h);
         if (btn) btn.classList.toggle("active", h === hours);
       });
       renderChannelUtilizationSection();
     }
 
-    let currentHeatmapPalette = localStorage.getItem("wifi_heatmap_palette") || "spectrum";
+    let selectedBluetoothTimeframe = 24; // 24, 48, or 168 (7d)
+    function setBluetoothTimeframe(hours) {
+      selectedBluetoothTimeframe = hours;
+      [24, 48, 168].forEach(h => {
+        const btn = document.getElementById("btnBtTf" + h);
+        if (btn) btn.classList.toggle("active", h === hours);
+      });
+      const title = document.getElementById("bluetoothSectionTitle");
+      if (title) {
+        title.innerText = hours === 24 ? "24-Hour Bluetooth & BLE Activity" : (hours === 48 ? "48-Hour Bluetooth & BLE Activity" : "7-Day Bluetooth & BLE Activity");
+      }
+      if (currentStationData) {
+        updateBluetoothUi(currentStationData);
+      }
+    }
+
+    let selectedLatencyTimeframe = 24; // 24, 48, or 168 (7d)
+    function setLatencyTimeframe(hours) {
+      selectedLatencyTimeframe = hours;
+      [24, 48, 168].forEach(h => {
+        const btn = document.getElementById("btnLatTf" + h);
+        if (btn) btn.classList.toggle("active", h === hours);
+      });
+      const title = document.getElementById("latencyTrendsTitle");
+      if (title) {
+        title.innerText = hours === 24 ? "24-Hour Network Latency Trends" : (hours === 48 ? "48-Hour Network Latency Trends" : "7-Day Network Latency Trends");
+      }
+      renderAllTrendCharts();
+    }
+
+    let currentHeatmapPalette = localStorage.getItem("wifi_heatmap_palette") || localStorage.getItem("t18_heatmap_palette") || "spectrum";
 
     const HEATMAP_PALETTES = {
       spectrum: {
@@ -3855,6 +4582,7 @@ export function renderDashboardHtml(): string {
     function changeHeatmapPalette(pal) {
       currentHeatmapPalette = pal || "spectrum";
       localStorage.setItem("wifi_heatmap_palette", currentHeatmapPalette);
+      localStorage.setItem("t18_heatmap_palette", currentHeatmapPalette);
       const sel = document.getElementById("heatmapPaletteSelect");
       if (sel) sel.value = currentHeatmapPalette;
       updateHeatmapLegends(currentHeatmapPalette);
@@ -3862,7 +4590,7 @@ export function renderDashboardHtml(): string {
       renderWeeklyHeatmaps();
     }
 
-    function updateHeatmapLegends(palName) {
+    function updateHeatmapLegends(palName, maxTarget, actualPeak) {
       const pal = HEATMAP_PALETTES[palName || currentHeatmapPalette] || HEATMAP_PALETTES.spectrum;
       const airSwatches = document.querySelectorAll(".airtime-legend-swatch");
       airSwatches.forEach(function(sw, idx) {
@@ -3872,6 +4600,30 @@ export function renderDashboardHtml(): string {
       bleSwatches.forEach(function(sw, idx) {
         if (pal.ble[idx]) sw.style.backgroundColor = pal.ble[idx];
       });
+
+      const max = Math.max(10, maxTarget || 25);
+      const t1 = Math.max(1, Math.round(max * 0.15));
+      const t2 = Math.max(t1 + 1, Math.round(max * 0.35));
+      const t3 = Math.max(t2 + 1, Math.round(max * 0.60));
+      const t4 = Math.max(t3 + 1, Math.round(max * 0.85));
+
+      if (bleSwatches.length >= 6) {
+        bleSwatches[0].title = "0 devices (Quiet)";
+        bleSwatches[1].title = "1 – " + t1 + " devices";
+        bleSwatches[2].title = (t1 + 1) + " – " + t2 + " devices";
+        bleSwatches[3].title = (t2 + 1) + " – " + t3 + " devices";
+        bleSwatches[4].title = (t3 + 1) + " – " + t4 + " devices";
+        bleSwatches[5].title = "≥ " + (t4 + 1) + " devices (Peak: " + (actualPeak !== undefined ? actualPeak : max) + ")";
+      }
+
+      const bleMaxText = document.getElementById("bleLegendMaxText");
+      if (bleMaxText) {
+        if (actualPeak !== undefined && actualPeak > 0) {
+          bleMaxText.innerText = "Peak " + actualPeak + " (Scale " + max + ")";
+        } else {
+          bleMaxText.innerText = "Scale " + max + " Dev";
+        }
+      }
     }
 
     function getAirtimeHeatmapColor(pct, palName) {
@@ -3891,14 +4643,20 @@ export function renderDashboardHtml(): string {
       return pal[11];
     }
 
-    function getBleHeatmapColor(count, palName) {
+    function getBleHeatmapColor(count, palName, maxTarget) {
       if (count === null || count === undefined || isNaN(count)) return 'rgba(100, 116, 139, 0.15)';
       const pal = (HEATMAP_PALETTES[palName || currentHeatmapPalette] || HEATMAP_PALETTES.spectrum).ble;
-      if (count === 0) return pal[0];
-      if (count <= 3) return pal[1];
-      if (count <= 8) return pal[2];
-      if (count <= 15) return pal[3];
-      if (count <= 25) return pal[4];
+      if (count <= 0) return pal[0];
+      const max = Math.max(10, maxTarget || 25);
+      const t1 = Math.max(1, Math.round(max * 0.15));
+      const t2 = Math.max(t1 + 1, Math.round(max * 0.35));
+      const t3 = Math.max(t2 + 1, Math.round(max * 0.60));
+      const t4 = Math.max(t3 + 1, Math.round(max * 0.85));
+
+      if (count <= t1) return pal[1];
+      if (count <= t2) return pal[2];
+      if (count <= t3) return pal[3];
+      if (count <= t4) return pal[4];
       return pal[5];
     }
 
@@ -4076,7 +4834,7 @@ export function renderDashboardHtml(): string {
 
           if (cellData) {
             const avgAir = cellData.sumAirtime / cellData.count;
-            const color = getAirtimeHeatmapColor(avgAir);
+            const color = getAirtimeHeatmapColor(avgAir, currentHeatmapPalette);
             cell.style.background = color;
             const tipText = 'Ch ' + ch + ' (' + timeLabel + ' - ' + endTimeLabel + '): ' + avgAir.toFixed(1) + '% airtime, ' + cellData.dataFrames.toLocaleString() + ' data, ' + cellData.mgmtFrames.toLocaleString() + ' mgmt, ' + cellData.ctrlFrames.toLocaleString() + ' ctrl, ' + cellData.transmitters + ' transmitters';
             cell.title = tipText;
@@ -4110,6 +4868,17 @@ export function renderDashboardHtml(): string {
       }
 
       // 3. Render Unique BLE Devices Row
+      let max24hBle = 0;
+      for (let i = 0; i < 48; i++) {
+        const bData = bleSlots[i];
+        if (bData && bData.count > 0) {
+          const devCount = Math.round(bData.sumUnique / bData.count);
+          if (devCount > max24hBle) max24hBle = devCount;
+        }
+      }
+      const dynamicBleMax24h = Math.max(10, Math.ceil(max24hBle / 5) * 5);
+      updateHeatmapLegends(currentHeatmapPalette, dynamicBleMax24h, max24hBle);
+
       const bleRow = document.createElement("div");
       bleRow.className = "heatmap-row";
       bleRow.style.marginTop = "4px";
@@ -4137,7 +4906,7 @@ export function renderDashboardHtml(): string {
 
         if (bData) {
           const devCount = Math.round(bData.sumUnique / bData.count);
-          const color = getBleHeatmapColor(devCount);
+          const color = getBleHeatmapColor(devCount, currentHeatmapPalette, dynamicBleMax24h);
           cell.style.background = color;
           cell.title = 'BLE Devices (' + timeLabel + ' - ' + endTimeLabel + '): ' + devCount + ' unique devices, ' + bData.totalMacs + ' MACs (' + bData.randomMacs + ' RPA, ' + bData.publicMacs + ' Public)';
 
@@ -4524,12 +5293,11 @@ export function renderDashboardHtml(): string {
         }
       }
 
-      // Render 24-Hour Channel Utilization Heatmap & 7-Day Heatmaps
+      // Render 24-Hour Channel Utilization Heatmap
       renderChannelHeatmap();
       renderWeeklyHeatmaps();
     }
 
-    
     function renderWeeklyHeatmaps() {
       const wifiContainer = document.getElementById("weeklyWifiHeatmapContainer");
       const btContainer = document.getElementById("weeklyBtHeatmapContainer");
@@ -4660,33 +5428,41 @@ export function renderDashboardHtml(): string {
       // Fill from daily_30min_summaries
       daily30.forEach(s => {
         for (let dIdx = 0; dIdx < 7; dIdx++) {
-          if (s.date === days[dIdx].ymd && s.interval_index >= 0 && s.interval_index < 48) {
-            const wCell = wifiMatrix[dIdx][s.interval_index];
-            if (wCell.count === 0 && s.channel_max_airtime) {
-              try {
-                const arr = JSON.parse(s.channel_max_airtime);
-                if (Array.isArray(arr) && arr.length > 0) {
-                  let maxA = 0;
-                  let maxCh = 1;
-                  arr.forEach((val, idx) => {
-                    const num = Number(val) || 0;
-                    if (num > maxA) {
-                      maxA = num;
-                      maxCh = idx + 1;
-                    }
-                  });
-                  wCell.count = 1;
-                  wCell.peakAirtime = maxA;
-                  wCell.peakChannel = maxCh;
-                  wCell.sumAirtime = maxA;
-                }
-              } catch(e) {}
-            }
-            const bCell = btMatrix[dIdx][s.interval_index];
-            if (bCell.count === 0 && (s.ble_max_unique || s.classic_max)) {
-              bCell.count = 1;
-              bCell.maxUnique = (s.ble_max_unique || 0) + (s.classic_max || 0);
-              bCell.classicTotal = s.classic_max || 0;
+          const d = days[dIdx];
+          const isDateMatch = (s.date === d.ymd);
+          const isTsMatch = (s.start_timestamp && s.start_timestamp >= d.startTs && s.start_timestamp < d.endTs);
+          if (isDateMatch || isTsMatch) {
+            const slotIdx = (s.start_timestamp && s.start_timestamp >= d.startTs && s.start_timestamp < d.endTs)
+              ? Math.min(47, Math.max(0, Math.floor((s.start_timestamp - d.startTs) / 1800)))
+              : (s.interval_index >= 0 && s.interval_index < 48 ? s.interval_index : -1);
+            if (slotIdx >= 0) {
+              const wCell = wifiMatrix[dIdx][slotIdx];
+              if (wCell.count === 0 && s.channel_max_airtime) {
+                try {
+                  const arr = JSON.parse(s.channel_max_airtime);
+                  if (Array.isArray(arr) && arr.length > 0) {
+                    let maxA = 0;
+                    let maxCh = 1;
+                    arr.forEach((val, idx) => {
+                      const num = Number(val) || 0;
+                      if (num > maxA) {
+                        maxA = num;
+                        maxCh = idx + 1;
+                      }
+                    });
+                    wCell.count = 1;
+                    wCell.peakAirtime = maxA;
+                    wCell.peakChannel = maxCh;
+                    wCell.sumAirtime = maxA;
+                  }
+                } catch(e) {}
+              }
+              const bCell = btMatrix[dIdx][slotIdx];
+              if (bCell.count === 0 && (s.ble_max_unique || s.classic_max)) {
+                bCell.count = 1;
+                bCell.maxUnique = (s.ble_max_unique || 0) + (s.classic_max || 0);
+                bCell.classicTotal = s.classic_max || 0;
+              }
             }
             break;
           }
@@ -4785,6 +5561,40 @@ export function renderDashboardHtml(): string {
       }
 
       // --- 2. Bluetooth Activity Heatmap ---
+      let max7dBle = 0;
+      for (let dIdx = 0; dIdx < 7; dIdx++) {
+        for (let slot = 0; slot < 48; slot++) {
+          const cell = btMatrix[dIdx][slot];
+          if (cell && cell.maxUnique > max7dBle) {
+            max7dBle = cell.maxUnique;
+          }
+        }
+      }
+      const dynamicBleMax7d = Math.max(10, Math.ceil(max7dBle / 5) * 5);
+
+      const btBadge = document.getElementById("weeklyBtLegendBadge");
+      if (btBadge) {
+        btBadge.innerHTML = '<span style="color:#38bdf8; font-weight:600;">(Dynamic Scale: Peak ' + max7dBle + ' &bull; Scale 0–' + dynamicBleMax7d + ' devices)</span>';
+      }
+      const btLegendWrap = document.getElementById("weeklyBtLegendWrap");
+      if (btLegendWrap) {
+        const pal = (HEATMAP_PALETTES[currentHeatmapPalette] || HEATMAP_PALETTES.spectrum).ble;
+        const t1 = Math.max(1, Math.round(dynamicBleMax7d * 0.15));
+        const t2 = Math.max(t1 + 1, Math.round(dynamicBleMax7d * 0.35));
+        const t3 = Math.max(t2 + 1, Math.round(dynamicBleMax7d * 0.60));
+        const t4 = Math.max(t3 + 1, Math.round(dynamicBleMax7d * 0.85));
+        btLegendWrap.innerHTML =
+          '<span style="color:var(--text-muted); margin-right:2px;">Scale:</span>' +
+          '<span style="display:inline-block; width:12px; height:10px; background:' + pal[0] + '; border-radius:2px;" title="0 devices"></span>' +
+          '<span style="color:var(--text-muted); margin-right:2px;">0</span>' +
+          '<span style="display:inline-block; width:12px; height:10px; background:' + pal[1] + '; border-radius:2px;" title="1 – ' + t1 + ' devices"></span>' +
+          '<span style="display:inline-block; width:12px; height:10px; background:' + pal[2] + '; border-radius:2px;" title="' + (t1+1) + ' – ' + t2 + ' devices"></span>' +
+          '<span style="display:inline-block; width:12px; height:10px; background:' + pal[3] + '; border-radius:2px;" title="' + (t2+1) + ' – ' + t3 + ' devices"></span>' +
+          '<span style="display:inline-block; width:12px; height:10px; background:' + pal[4] + '; border-radius:2px;" title="' + (t3+1) + ' – ' + t4 + ' devices"></span>' +
+          '<span style="display:inline-block; width:12px; height:10px; background:' + pal[5] + '; border-radius:2px;" title="≥ ' + (t4+1) + ' devices (Peak ' + max7dBle + ')"></span>' +
+          '<span style="color:#38bdf8; font-weight:600; margin-left:2px;">≥' + (t4+1) + '</span>';
+      }
+
       btContainer.appendChild(createTimeHeaderRow());
       const btHover = document.getElementById("weeklyBtHoverInfo");
 
@@ -4817,7 +5627,7 @@ export function renderDashboardHtml(): string {
           const timeRange = startH + ':' + startM + ' – ' + endH + ':' + endM;
 
           if (cellData.count > 0 && cellData.maxUnique > 0) {
-            const color = getBleHeatmapColor(cellData.maxUnique, currentHeatmapPalette);
+            const color = getBleHeatmapColor(cellData.maxUnique, currentHeatmapPalette, dynamicBleMax7d);
             cell.style.background = color;
             cell.title = d.dayLabel + ' (' + timeRange + '): ' + cellData.maxUnique + ' unique devices (' + cellData.classicTotal + ' Classic)';
 
@@ -5317,7 +6127,10 @@ export function renderDashboardHtml(): string {
 
     function updateBluetoothUi(data) {
       const bt = data ? data.latest_bluetooth : null;
-      const history = (data && Array.isArray(data.bluetooth_history)) ? data.bluetooth_history : [];
+      const rawHistory = (data && Array.isArray(data.bluetooth_history)) ? data.bluetooth_history : [];
+      const nowSec = Math.floor(Date.now() / 1000);
+      const cutoffSec = nowSec - (selectedBluetoothTimeframe * 3600);
+      const history = rawHistory.filter(h => h.timestamp >= cutoffSec);
 
       const uEl = document.getElementById("stat-ble-unique");
       const mEl = document.getElementById("stat-ble-macs");
@@ -5423,10 +6236,40 @@ export function renderDashboardHtml(): string {
         return;
       }
 
-      const labels = history.map(h => new Date(h.timestamp * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      const daysOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const labels = history.map(h => {
+        const d = new Date(h.timestamp * 1000);
+        if (selectedBluetoothTimeframe > 24) {
+          return daysOfWeek[d.getDay()] + ' ' + d.getHours().toString().padStart(2, '0') + ':' + d.getMinutes().toString().padStart(2, '0');
+        }
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      });
+
       const uniqueData = history.map(h => h.ble_unique_devices ?? 0);
-      const rpaData = history.map(h => h.ble_random_macs ?? 0);
+
+      // Clean up legacy zero dips in rpaData when unique devices > 0
+      const rpaData = history.map((h, idx) => {
+        let r = h.ble_random_macs;
+        if ((r === undefined || r === null || r === 0) && (h.ble_unique_devices > 0)) {
+          const prev = (idx > 0 && history[idx - 1].ble_random_macs > 0) ? history[idx - 1].ble_random_macs : null;
+          const next = (idx < history.length - 1 && history[idx + 1].ble_random_macs > 0) ? history[idx + 1].ble_random_macs : null;
+          if (prev !== null && next !== null) {
+            r = Math.round((prev + next) / 2);
+          } else if (prev !== null) {
+            r = prev;
+          } else if (next !== null) {
+            r = next;
+          } else {
+            r = Math.max(0, h.ble_unique_devices - (h.ble_public_macs || 0));
+          }
+        }
+        return r ?? 0;
+      });
+
       const classicData = history.map(h => h.classic_total ?? 0);
+
+      const ptRadius = history.length > 70 ? (history.length > 200 ? 0 : 1) : 2;
+      const bWidth = history.length > 200 ? 1.5 : 2;
 
       bluetoothChartInstance = new Chart(ctx, {
         type: 'line',
@@ -5440,8 +6283,8 @@ export function renderDashboardHtml(): string {
               backgroundColor: 'rgba(56, 189, 248, 0.1)',
               fill: true,
               tension: 0.2,
-              borderWidth: 2,
-              pointRadius: history.length > 50 ? 1 : 3
+              borderWidth: bWidth,
+              pointRadius: ptRadius
             },
             {
               label: 'Randomized BLE MACs',
@@ -5451,8 +6294,8 @@ export function renderDashboardHtml(): string {
               borderDash: [4, 4],
               fill: false,
               tension: 0.2,
-              borderWidth: 1.5,
-              pointRadius: history.length > 50 ? 0 : 2
+              borderWidth: bWidth > 1.5 ? 1.5 : 1,
+              pointRadius: ptRadius > 0 ? (ptRadius - 1) : 0
             },
             {
               label: 'Classic BT Devices',
@@ -5461,8 +6304,8 @@ export function renderDashboardHtml(): string {
               backgroundColor: 'transparent',
               fill: false,
               tension: 0.2,
-              borderWidth: 1.5,
-              pointRadius: history.length > 50 ? 0 : 2
+              borderWidth: bWidth > 1.5 ? 1.5 : 1,
+              pointRadius: ptRadius > 0 ? (ptRadius - 1) : 0
             }
           ]
         },

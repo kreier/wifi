@@ -146,6 +146,29 @@ export async function handleTelemetry(request: Request, env: Env): Promise<Respo
       await db.saveBluetoothTelemetry(station.station_id, cycleTime, cycle.bluetooth);
     }
 
+    // Real-time indexing into daily_30min_summaries for instantaneous 7-day and 24h heatmap rendering
+    if ((Array.isArray(cycle.channel_utilization) && cycle.channel_utilization.length > 0) || cycle.bluetooth) {
+      let chanAirtimeArr: number[] | null = null;
+      if (Array.isArray(cycle.channel_utilization) && cycle.channel_utilization.length > 0) {
+        chanAirtimeArr = Array(13).fill(0);
+        for (const cu of cycle.channel_utilization) {
+          if (cu.channel >= 1 && cu.channel <= 13) {
+            chanAirtimeArr[cu.channel - 1] = Math.round(cu.airtime_pct);
+          }
+        }
+      }
+      const bleMax = cycle.bluetooth?.ble_unique_devices ?? 0;
+      const classicMax = cycle.bluetooth?.classic_total ?? 0;
+      await db.upsertDaily30MinSummary(
+        station.station_id,
+        cycleTime,
+        chanAirtimeArr ? JSON.stringify(chanAirtimeArr) : null,
+        bleMax,
+        classicMax,
+        batMv
+      );
+    }
+
     // Process scan surveys
     if (Array.isArray(cycle.scan_survey)) {
       for (const item of cycle.scan_survey) {

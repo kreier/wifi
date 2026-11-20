@@ -1,5 +1,6 @@
 import { Env } from "./types";
 import { Database } from "./db";
+import { invalidateMemoryCache } from "./api";
 
 // Helper for constant-time or secure string comparison
 function timingSafeEqual(a: string, b: string): boolean {
@@ -275,6 +276,7 @@ export async function handleAdminApi(subPath: string, request: Request, env: Env
       }
 
       const result = await db.deleteMeasurementsByTimeframe(stationId, fromTs, toTs);
+      invalidateMemoryCache(stationId || undefined);
       return jsonResponse({
         success: true,
         message: `Deleted ${result.deletedMeasurements} measurements, ${result.deletedChannels} channel records, ${result.deletedAps} AP scans, ${result.deletedBt} Bluetooth summaries, and ${result.deletedBattery} battery entries`,
@@ -282,6 +284,57 @@ export async function handleAdminApi(subPath: string, request: Request, env: Env
       });
     } catch (e: any) {
       return jsonResponse({ error: e.message || "Failed to delete data" }, 500);
+    }
+  }
+
+  // 8. Scan for Telemetry Outliers
+  if (subPath === "outliers" && request.method === "GET") {
+    try {
+      const url = new URL(request.url);
+      const stationId = url.searchParams.get("station_id") || "all";
+      const outliers = await db.scanOutliers(stationId);
+      return jsonResponse({
+        success: true,
+        station_id: stationId,
+        count: outliers.length,
+        outliers
+      });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to scan outliers" }, 500);
+    }
+  }
+
+  // 9. Delete Telemetry Outliers
+  if (subPath === "outliers/delete" && request.method === "POST") {
+    try {
+      const body = await request.json() as any;
+      if (body.purge_all) {
+        const stationId = body.station_id || "all";
+        const count = await db.purgeAllOutliers(stationId);
+        invalidateMemoryCache(stationId !== "all" ? stationId : undefined);
+        return jsonResponse({
+          success: true,
+          deleted_count: count,
+          message: `Successfully purged ${count} outlier records fleet-wide`
+        });
+      }
+
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (items.length === 0) {
+        return jsonResponse({ error: "No outlier items specified for deletion" }, 400);
+      }
+
+      const count = await db.deleteOutlierItems(items);
+      const affectedStation = items[0]?.station_id;
+      invalidateMemoryCache(affectedStation);
+
+      return jsonResponse({
+        success: true,
+        deleted_count: count,
+        message: `Successfully deleted ${count} outlier records`
+      });
+    } catch (e: any) {
+      return jsonResponse({ error: e.message || "Failed to delete outliers" }, 500);
     }
   }
 

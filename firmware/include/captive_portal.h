@@ -178,6 +178,7 @@ private:
         html += "<option value='0'" + String(config.hw.board_type == BOARD_T18 ? " selected" : "") + ">LILYGO T18 (LED: GPIO 5, Battery: GPIO 35, 100k/100k)</option>";
         html += "<option value='1'" + String(config.hw.board_type == BOARD_T8 ? " selected" : "") + ">LILYGO T8 (LED: GPIO 21, Battery: GPIO 35, 100k/100k)</option>";
         html += "<option value='2'" + String(config.hw.board_type == BOARD_DEVKIT ? " selected" : "") + ">ESP32 DevKit V1 (LED: GPIO 2, No Battery)</option>";
+        html += "<option value='4'" + String(config.hw.board_type == BOARD_C3_SUPERMINI ? " selected" : "") + ">ESP32-C3 Super Mini (LED: GPIO 8, No Battery)</option>";
         html += "<option value='3'" + String(config.hw.board_type == BOARD_CUSTOM ? " selected" : "") + ">Custom / ESP32-C5 (Manual Configuration)</option>";
         html += F("</select></div>");
 
@@ -211,7 +212,7 @@ private:
         html += F(" style='width:1.25rem;min-width:1.25rem;height:1.25rem;accent-color:var(--primary);cursor:pointer;margin-top:0.2rem;'>"
                   "<div><label for='pb_alive' style='cursor:pointer;margin-bottom:0.15rem;font-weight:600;'>Power Bank Keep-Alive Workaround</label>"
                   "<span style='color:var(--muted);font-size:0.75rem;line-height:1.3;display:block;'>"
-                  "Wake up ESP32 from light sleep for 500 ms every 20 seconds to draw current and prevent external power banks from auto-shutting off."
+                  "Wake up from light sleep every 20s with a high-current Wi-Fi &amp; CPU burst (120 ms, ~150 mA) to prevent external USB power banks from auto-shutting off. Automatically switches node to energy-preserving mode (10m interval, 30m surveys, 800ms dwell)."
                   "</span></div></div>");
 
         // Monitored Networks
@@ -295,6 +296,7 @@ private:
                   "  if(t===0){led.value=5;bat.value=35;div.value='0.50';lbl.value='T18';}"
                   "  else if(t===1){led.value=21;bat.value=35;div.value='0.50';lbl.value='T8';}"
                   "  else if(t===2){led.value=2;bat.value=-1;div.value='0.50';lbl.value='DevKitV1';}"
+                  "  else if(t===4){led.value=8;bat.value=-1;div.value='0.50';lbl.value='C3SuperMini';}"
                   "  else if(t===3){lbl.value='Custom';}"
                   "}"
                   "</script></body></html>");

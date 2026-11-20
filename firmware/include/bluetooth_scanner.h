@@ -6,7 +6,10 @@
 #include <BLEDevice.h>
 #include <BLEScan.h>
 #include <BLEAdvertisedDevice.h>
+#if !defined(CONFIG_IDF_TARGET_ESP32C3) && !defined(CONFIG_IDF_TARGET_ESP32S3) && !defined(CONFIG_IDF_TARGET_ESP32C6)
+#define HAS_CLASSIC_BT 1
 #include <BluetoothSerial.h>
+#endif
 
 struct BleDeviceRecord {
     String address;       // "AA:BB:CC:DD:EE:FF"
@@ -65,8 +68,10 @@ public:
         // 1. BLE Scan Phase
         scanBle(result, bleDurationSec);
 
-        // 2. Bluetooth Classic Inquiry Phase
+        // 2. Bluetooth Classic Inquiry Phase (if supported)
+#if defined(HAS_CLASSIC_BT)
         scanClassic(result, classicDurationMs);
+#endif
 
         result.scan_duration_ms = millis() - startMs;
         Serial.printf("[Bluetooth] Complete in %lu ms: BLE %lu packets, %u MACs, %u unique devices (Random: %u, Public: %u); Classic: %u devices. Remaining Heap: %u bytes.\n",
@@ -256,7 +261,7 @@ private:
                     break;
                 }
             }
-            if (!found && uniqueDevices.size() < 60) {
+            if (!found && uniqueDevices.size() < 120) {
                 uniqueDevices.push_back(rec);
             }
         }
@@ -290,9 +295,9 @@ private:
                       return a.rssi > b.rssi;
                   });
 
-        // Cap reported BLE device details to top 20 most prominent
-        if (result.ble_devices.size() > 20) {
-            result.ble_devices.resize(20);
+        // Cap reported BLE device details to top 30 most prominent
+        if (result.ble_devices.size() > 30) {
+            result.ble_devices.resize(30);
         }
     }
 
@@ -453,6 +458,7 @@ private:
     }
 
     static void scanClassic(BluetoothScanResult &result, uint32_t durationMs) {
+#if defined(HAS_CLASSIC_BT)
         if (ESP.getFreeHeap() < 35000) {
             Serial.printf("[Bluetooth] Warning: Low heap (%u bytes), skipping Classic BT scan.\n",
                           (unsigned)ESP.getFreeHeap());
@@ -498,5 +504,9 @@ private:
         if (result.classic_devices.size() > 10) {
             result.classic_devices.resize(10);
         }
+#else
+        (void)durationMs;
+        result.classic_total = 0;
+#endif
     }
 };

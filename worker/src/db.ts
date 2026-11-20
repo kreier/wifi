@@ -1,4 +1,4 @@
-import { Env, StationRecord, MeasurementRecord, ScanSurveyRecord, InactiveSurveyRecord, NetworkDiagnosticsPayload, NetworkDiagnosticsRecord, ChannelUtilizationPayload, ChannelUtilizationRecord, BluetoothPayload, BluetoothRecord, InactiveBluetoothRecord } from "./types";
+import { Env, StationRecord, MeasurementRecord, ScanSurveyRecord, InactiveSurveyRecord, NetworkDiagnosticsPayload, NetworkDiagnosticsRecord, ChannelUtilizationPayload, ChannelUtilizationRecord, BluetoothPayload, BluetoothRecord, InactiveBluetoothRecord, OutlierRecord } from "./types";
 
 export class Database {
   private db: D1Database;
@@ -243,10 +243,10 @@ export class Database {
               station_id, bssid, ssid, channel, rssi, quality, encryption, phy_mode, band, last_seen
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(station_id, bssid) DO UPDATE SET
-              ssid = excluded.ssid,
+              ssid = COALESCE(excluded.ssid, station_discovered_aps.ssid),
               channel = excluded.channel,
-              rssi = excluded.rssi,
-              quality = excluded.quality,
+              rssi = MAX(COALESCE(station_discovered_aps.rssi, -120), excluded.rssi),
+              quality = MAX(COALESCE(station_discovered_aps.quality, 0), excluded.quality),
               encryption = excluded.encryption,
               phy_mode = excluded.phy_mode,
               band = excluded.band,
@@ -379,7 +379,7 @@ export class Database {
     return [];
   }
 
-  async getRecentMeasurements(stationId: string, limit: number = 288): Promise<MeasurementRecord[]> {
+  async getRecentMeasurements(stationId: string, limit: number = 2500): Promise<MeasurementRecord[]> {
     const result = await this.db
       .prepare(`
         SELECT * FROM measurements
@@ -723,8 +723,10 @@ export class Database {
     const bleTotalPackets = bt.ble_total_packets ?? 0;
     const bleTotalMacs = bt.ble_total_macs ?? 0;
     const bleUniqueDevices = bt.ble_unique_devices ?? 0;
-    const bleRandomMacs = bt.ble_random_macs ?? 0;
     const blePublicMacs = bt.ble_public_macs ?? 0;
+    const bleRandomMacs = (bt.ble_random_macs !== undefined && bt.ble_random_macs > 0)
+      ? bt.ble_random_macs
+      : (bleUniqueDevices > blePublicMacs ? (bleUniqueDevices - blePublicMacs) : 0);
     const bleBeacons = bt.ble_categories?.beacons ?? 0;
     const bleSmartphones = bt.ble_categories?.smartphones ?? 0;
     const bleWearables = bt.ble_categories?.wearables ?? 0;
@@ -749,9 +751,9 @@ export class Database {
           ON CONFLICT(station_id, timestamp) DO UPDATE SET
             ble_total_packets = excluded.ble_total_packets,
             ble_total_macs = excluded.ble_total_macs,
-            ble_unique_devices = excluded.ble_unique_devices,
-            ble_random_macs = excluded.ble_random_macs,
-            ble_public_macs = excluded.ble_public_macs,
+            ble_unique_devices = CASE WHEN excluded.ble_unique_devices > 0 THEN excluded.ble_unique_devices ELSE station_bluetooth_summary.ble_unique_devices END,
+            ble_random_macs = CASE WHEN excluded.ble_random_macs > 0 THEN excluded.ble_random_macs ELSE station_bluetooth_summary.ble_random_macs END,
+            ble_public_macs = CASE WHEN excluded.ble_public_macs > 0 THEN excluded.ble_public_macs ELSE station_bluetooth_summary.ble_public_macs END,
             ble_beacons = excluded.ble_beacons,
             ble_smartphones = excluded.ble_smartphones,
             ble_wearables = excluded.ble_wearables,
@@ -976,6 +978,64 @@ export class Database {
     }
   }
 
+  async upsertDaily30MinSummary(
+    stationId: string,
+    timestamp: number,
+    channelAirtimeJson: string | null,
+    bleMaxUnique: number,
+    classicMax: number,
+    batteryMv: number | null
+  ): Promise<void> {
+    const d = new Date(timestamp * 1000);
+    const dateStr = d.toISOString().split("T")[0]; // YYYY-MM-DD
+    const secInDay = (d.getUTCHours() * 3600) + (d.getUTCMinutes() * 60) + d.getUTCSeconds();
+    const intervalIndex = Math.min(47, Math.max(0, Math.floor(secInDay / 1800)));
+    const startTs = Math.floor(timestamp / 1800) * 1800;
+
+    try {
+      await this.db.prepare(`
+        INSERT INTO daily_30min_summaries (
+          station_id, date, interval_index, start_timestamp, channel_max_airtime, ble_max_unique, classic_max, battery_mv
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(station_id, date, interval_index) DO UPDATE SET
+          start_timestamp = excluded.start_timestamp,
+          channel_max_airtime = COALESCE(excluded.channel_max_airtime, daily_30min_summaries.channel_max_airtime),
+          ble_max_unique = MAX(daily_30min_summaries.ble_max_unique, excluded.ble_max_unique),
+          classic_max = MAX(daily_30min_summaries.classic_max, excluded.classic_max),
+          battery_mv = COALESCE(excluded.battery_mv, daily_30min_summaries.battery_mv)
+      `).bind(
+        stationId,
+        dateStr,
+        intervalIndex,
+        startTs,
+        channelAirtimeJson || "[]",
+        bleMaxUnique,
+        classicMax,
+        batteryMv ?? null
+      ).run();
+    } catch (e) {
+      console.error("[DB upsertDaily30MinSummary error]:", e);
+    }
+  }
+
+  async getAllDiscoveredAps(stationId: string): Promise<InactiveSurveyRecord[]> {
+    try {
+      const result = await this.db
+        .prepare(`
+          SELECT ssid, UPPER(bssid) AS bssid, channel, phy_mode, encryption, band, rssi, quality, last_seen
+          FROM station_discovered_aps
+          WHERE station_id = ?
+          ORDER BY last_seen DESC
+          LIMIT 300
+        `)
+        .bind(stationId)
+        .all<InactiveSurveyRecord>();
+      return result.results || [];
+    } catch {
+      return [];
+    }
+  }
+
   // ==========================================
   // Fleet Admin & Settings Methods
   // ==========================================
@@ -1192,5 +1252,237 @@ export class Database {
       deletedChannels: r4.meta?.changes ?? 0,
       deletedBattery: r5.meta?.changes ?? 0
     };
+  }
+
+  async scanOutliers(stationId?: string | null): Promise<OutlierRecord[]> {
+    const outliers: OutlierRecord[] = [];
+    const hasStation = stationId && stationId.trim() !== "" && stationId !== "all";
+
+    // 1. Bluetooth Summaries
+    let btQuery = `
+      SELECT id, station_id, timestamp, ble_unique_devices, ble_total_packets, ble_total_macs, classic_total
+      FROM station_bluetooth_summary
+      WHERE (ble_unique_devices > 100 OR ble_unique_devices < 0 OR classic_total > 50 OR classic_total < 0)
+    `;
+    const btParams: any[] = [];
+    if (hasStation) {
+      btQuery += " AND station_id = ?";
+      btParams.push(stationId);
+    }
+    btQuery += " ORDER BY timestamp DESC LIMIT 100";
+    const btRows = await this.db.prepare(btQuery).bind(...btParams).all<any>();
+    if (btRows.results) {
+      for (const r of btRows.results) {
+        let reason = "Anomalous Bluetooth measurement";
+        let metric = "BLE Devices";
+        let val = `${r.ble_unique_devices} unique`;
+        if (r.ble_unique_devices > 100) {
+          reason = `BLE unique device count (${r.ble_unique_devices}) exceeds realistic limit (> 100)`;
+        } else if (r.ble_unique_devices < 0) {
+          reason = `Negative BLE count (${r.ble_unique_devices})`;
+        } else if (r.classic_total > 50) {
+          metric = "Classic BT";
+          val = `${r.classic_total} devices`;
+          reason = `Classic Bluetooth device count (${r.classic_total}) exceeds threshold (> 50)`;
+        }
+        outliers.push({
+          id: r.id,
+          table: "station_bluetooth_summary",
+          station_id: r.station_id,
+          timestamp: r.timestamp,
+          date_formatted: new Date(r.timestamp * 1000).toISOString().replace("T", " ").substring(0, 19) + " UTC",
+          metric,
+          value: val,
+          reason,
+          severity: "critical"
+        });
+      }
+    }
+
+    // 2. Daily 30-min Summaries
+    let d30Query = `
+      SELECT id, station_id, date, interval_index, start_timestamp, ble_max_unique, classic_max
+      FROM daily_30min_summaries
+      WHERE (ble_max_unique > 100 OR ble_max_unique < 0 OR classic_max > 50 OR classic_max < 0)
+    `;
+    const d30Params: any[] = [];
+    if (hasStation) {
+      d30Query += " AND station_id = ?";
+      d30Params.push(stationId);
+    }
+    d30Query += " ORDER BY date DESC, interval_index DESC LIMIT 100";
+    const d30Rows = await this.db.prepare(d30Query).bind(...d30Params).all<any>();
+    if (d30Rows.results) {
+      for (const r of d30Rows.results) {
+        const ts = r.start_timestamp || 0;
+        outliers.push({
+          id: r.id,
+          table: "daily_30min_summaries",
+          station_id: r.station_id,
+          timestamp: ts,
+          date_formatted: `${r.date} [Slot ${r.interval_index}]`,
+          metric: "30m Aggregated BLE",
+          value: `${r.ble_max_unique} max unique`,
+          reason: `30-minute aggregated BLE peak (${r.ble_max_unique}) exceeds valid threshold (> 100)`,
+          severity: "critical"
+        });
+      }
+    }
+
+    // 3. Channel Utilization / Spectrum
+    let chQuery = `
+      SELECT id, station_id, timestamp, channel, airtime_pct, unique_transmitters
+      FROM station_channel_utilization
+      WHERE (airtime_pct > 100 OR airtime_pct < 0 OR unique_transmitters > 300)
+    `;
+    const chParams: any[] = [];
+    if (hasStation) {
+      chQuery += " AND station_id = ?";
+      chParams.push(stationId);
+    }
+    chQuery += " ORDER BY timestamp DESC LIMIT 100";
+    const chRows = await this.db.prepare(chQuery).bind(...chParams).all<any>();
+    if (chRows.results) {
+      for (const r of chRows.results) {
+        outliers.push({
+          id: r.id,
+          table: "station_channel_utilization",
+          station_id: r.station_id,
+          timestamp: r.timestamp,
+          date_formatted: new Date(r.timestamp * 1000).toISOString().replace("T", " ").substring(0, 19) + " UTC",
+          metric: `Ch ${r.channel} Airtime`,
+          value: `${r.airtime_pct}% (${r.unique_transmitters} transmitters)`,
+          reason: r.airtime_pct > 100 || r.airtime_pct < 0
+            ? `Airtime utilization (${r.airtime_pct}%) outside valid 0-100% boundary`
+            : `Excessive unique transmitters (${r.unique_transmitters}) on ch ${r.channel}`,
+          severity: r.airtime_pct > 100 || r.airtime_pct < 0 ? "critical" : "warning"
+        });
+      }
+    }
+
+    // 4. Latency Measurements
+    let mQuery = `
+      SELECT id, station_id, timestamp, ssid, assoc_ms, dhcp_ms, gateway_ms, cloudflare_ms, google_ms
+      FROM measurements
+      WHERE (
+        gateway_ms > 10000
+        OR (gateway_ms < -1)
+        OR cloudflare_ms > 30000
+        OR (cloudflare_ms < -1)
+        OR google_ms > 30000
+        OR (google_ms < -1)
+        OR assoc_ms > 60000
+        OR (assoc_ms < -1)
+        OR dhcp_ms > 60000
+        OR (dhcp_ms < -1)
+      )
+    `;
+    const mParams: any[] = [];
+    if (hasStation) {
+      mQuery += " AND station_id = ?";
+      mParams.push(stationId);
+    }
+    mQuery += " ORDER BY timestamp DESC LIMIT 100";
+    const mRows = await this.db.prepare(mQuery).bind(...mParams).all<any>();
+    if (mRows.results) {
+      for (const r of mRows.results) {
+        outliers.push({
+          id: r.id,
+          table: "measurements",
+          station_id: r.station_id,
+          timestamp: r.timestamp,
+          date_formatted: new Date(r.timestamp * 1000).toISOString().replace("T", " ").substring(0, 19) + " UTC",
+          metric: "Probe Latency",
+          value: `GW: ${r.gateway_ms}ms, CF: ${r.cloudflare_ms}ms, Google: ${r.google_ms}ms`,
+          reason: "Probe latency exceeded realistic threshold or had invalid negative value",
+          severity: "warning"
+        });
+      }
+    }
+
+    // 5. Battery History
+    let batQuery = `
+      SELECT rowid as id, station_id, timestamp, battery_mv
+      FROM station_battery_history
+      WHERE (battery_mv > 5000 OR (battery_mv < 2000 AND battery_mv > 0) OR battery_mv < 0)
+    `;
+    const batParams: any[] = [];
+    if (hasStation) {
+      batQuery += " AND station_id = ?";
+      batParams.push(stationId);
+    }
+    batQuery += " ORDER BY timestamp DESC LIMIT 100";
+    const batRows = await this.db.prepare(batQuery).bind(...batParams).all<any>();
+    if (batRows.results) {
+      for (const r of batRows.results) {
+        outliers.push({
+          id: r.id,
+          table: "station_battery_history",
+          station_id: r.station_id,
+          timestamp: r.timestamp,
+          date_formatted: new Date(r.timestamp * 1000).toISOString().replace("T", " ").substring(0, 19) + " UTC",
+          metric: "Battery Voltage",
+          value: `${r.battery_mv} mV (${(r.battery_mv / 1000).toFixed(2)} V)`,
+          reason: "Voltage reading outside standard 2.0V - 5.0V LiPo range",
+          severity: "critical"
+        });
+      }
+    }
+
+    return outliers;
+  }
+
+  async deleteOutlierItems(items: Array<{ table: string; id: number; station_id?: string; timestamp?: number }>): Promise<number> {
+    if (!items || items.length === 0) return 0;
+    const allowedTables = [
+      "station_bluetooth_summary",
+      "daily_30min_summaries",
+      "station_channel_utilization",
+      "measurements",
+      "station_battery_history"
+    ];
+
+    const affectedStations = new Set<string>();
+    const stmts: D1PreparedStatement[] = [];
+
+    for (const item of items) {
+      if (!allowedTables.includes(item.table)) continue;
+      if (item.table === "station_battery_history") {
+        stmts.push(this.db.prepare("DELETE FROM station_battery_history WHERE rowid = ?").bind(item.id));
+      } else {
+        stmts.push(this.db.prepare(`DELETE FROM ${item.table} WHERE id = ?`).bind(item.id));
+      }
+      if (item.station_id) {
+        affectedStations.add(item.station_id);
+      }
+      // If we are deleting an outlier from station_bluetooth_summary, also clean up corresponding daily_30min_summaries if it held an anomalous ble_max_unique
+      if (item.table === "station_bluetooth_summary" && item.station_id && item.timestamp) {
+        stmts.push(
+          this.db.prepare("DELETE FROM daily_30min_summaries WHERE station_id = ? AND (start_timestamp = ? OR ble_max_unique > 100)")
+            .bind(item.station_id, item.timestamp)
+        );
+      }
+    }
+
+    if (stmts.length > 0) {
+      await this.db.batch(stmts);
+    }
+
+    for (const st of affectedStations) {
+      await this.invalidateOverviewCache(st);
+    }
+
+    return items.length;
+  }
+
+  async purgeAllOutliers(stationId?: string | null): Promise<number> {
+    const outliers = await this.scanOutliers(stationId);
+    if (outliers.length === 0) return 0;
+    return await this.deleteOutlierItems(outliers.map(o => ({
+      table: o.table,
+      id: o.id,
+      station_id: o.station_id,
+      timestamp: o.timestamp
+    })));
   }
 }

@@ -38,12 +38,14 @@ The `kreier/wifi` platform is built on an edge-native, zero-trust, and power-opt
   Measures local gateway TCP SYN round-trip time, performs IPv4 vs. IPv6 DNS resolution benchmarking, detects captive portal HTTP canary hijacking, and executes automated daily gateway firewall audits.
 - **Automated Fleet OTA & Battery Telemetry ([ADR 0004: Fleet OTA & Battery History](docs/adr/0004-fleet-ota-and-battery-monitoring.md))**:
   Automated edge OTA dispatch with zero-redirect streaming proxies from GitHub Releases and Cloudflare R2. Time-series battery voltage monitoring (Migration 0008) on ADC pin IO35 with discharge trend analysis and remaining runtime modeling.
-- **Offline Resilience via Raw SPI Flash Partition Buffer**:
-  When Wi-Fi connectivity is unavailable, cycles are binary-buffered into a dedicated 192 KB raw flash circular spool, with in-memory zero-flash-wear fast path during normal connectivity.
-- **Dual Web Dashboards**:
-  Edge-hosted server-rendered dashboard on Cloudflare Worker (`wifi.kreier.workers.dev`) coupled with a GitHub Pages static client mirror (`kreier.github.io/wifi`), both supporting client-side station deep-linking and theme switching.
-- **In-Browser Web Serial Flasher**:
-  Zero-install browser flasher leveraging the Web Serial API and ESP Web Tools. Enables operators to flash compiled universal firmware and partition tables directly to ESP32 nodes with real-time progress and live serial console logs from Chrome, Edge, Brave, or Opera without installing local toolchains or Python.
+- **Offline Resilience via 18-Day Raw Flash Ring Buffer**:
+  When Wi-Fi connectivity is unavailable, intermediate cycles accumulate solely in RAM. Consolidated 30-minute average telemetry slots (~110-120 bytes) are binary-buffered into a 176 KB circular flash spool (`min_spiffs.csv`), retaining over **18 to 31+ days (1,500+ records)** during complete network blackouts. Backlog drains automatically in transactional chunks (`confirmBatchUploaded`) upon reconnection.
+- **Power Bank Energy-Preserving Mode ([docs/power-consumption.md](docs/power-consumption.md))**:
+  When powerbank keep-alive is active (e.g. on ESP32-C3 Super Mini), the firmware automatically switches from 2-minute AC cadence to battery-optimized 10-minute cadence, reduces 13-channel survey dwell time from 2000 ms to 800 ms per channel, and injects a 120 ms high-current Wi-Fi/CPU burst every 20 seconds. This prevents external USB power banks from shutting down while achieving **62.7+ days of autonomy** on a 10,000 mAh power bank!
+- **Multi-Architecture Web Serial Flasher**:
+  Zero-install browser flasher with target hardware selector (Standard ESP32 vs. ESP32-C3 Super Mini) and dedicated update manifests that preserve NVS configuration and credentials without full flash wipe.
+- **Telemetry Anomaly & Outlier Detection**:
+  Built-in database anomaly scanning and remediation engine in Fleet Settings allowing operators to detect and purge corrupted records across Bluetooth, airtime, probe latency, and battery metrics.
 
 ---
 

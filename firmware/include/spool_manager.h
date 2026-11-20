@@ -7,9 +7,9 @@
 
 // Raw Partition Telemetry Spool (No LittleFS needed!)
 // Partition: 'spiffs' partition in min_spiffs.csv (192 KB / 48 sectors)
-// Sector 0 (0..4095): Header & State
+// Sector 0 (0..4095): Header & State Table with read/write pointers
 // Sectors 1..3 (4096..16383): 48-slot 30-minute Channel History Buffer
-// Sectors 4..47 (16384..196607): Circular binary records
+// Sectors 4..47 (16384..196607): Circular binary records (176 KB ring buffer)
 
 #define SPOOL_MAGIC_HEADER 0x574D4F4E // "WMON"
 #define SPOOL_REC_MAGIC    0xAA55
@@ -21,6 +21,7 @@ struct SpoolHeader {
     uint32_t version;
     uint32_t record_count;
     uint32_t write_offset;
+    uint32_t read_offset;
     uint32_t crc32;
 };
 
@@ -50,8 +51,8 @@ public:
             return false;
         }
 
-        if (hdr.magic != SPOOL_MAGIC_HEADER) {
-            // First time initialization: format sector 0
+        if (hdr.magic != SPOOL_MAGIC_HEADER || hdr.version != 2) {
+            // First time initialization or schema upgrade: format sector 0
             clearSpool();
         }
         return true;
@@ -63,7 +64,7 @@ public:
 
         SpoolHeader hdr;
         if (esp_partition_read(part, 0, &hdr, sizeof(hdr)) != ESP_OK) return false;
-        return (hdr.magic == SPOOL_MAGIC_HEADER && hdr.record_count > 0);
+        return (hdr.magic == SPOOL_MAGIC_HEADER && hdr.record_count > 0 && hdr.read_offset < hdr.write_offset);
     }
 
     static uint32_t getRecordCount() {
@@ -75,15 +76,16 @@ public:
         return (hdr.magic == SPOOL_MAGIC_HEADER) ? hdr.record_count : 0;
     }
 
-    // Append cycle in binary format ONLY when offline
+    // Append streamlined cycle in binary format ONLY when offline
     static bool appendCycle(const CycleTelemetry &cycle) {
         const esp_partition_t *part = getPartition();
         if (!part) return false;
 
         SpoolHeader hdr;
-        if (esp_partition_read(part, 0, &hdr, sizeof(hdr)) != ESP_OK || hdr.magic != SPOOL_MAGIC_HEADER || hdr.write_offset < SPOOL_START_OFFSET) {
+        if (esp_partition_read(part, 0, &hdr, sizeof(hdr)) != ESP_OK || hdr.magic != SPOOL_MAGIC_HEADER || hdr.version != 2 || hdr.write_offset < SPOOL_START_OFFSET) {
             clearSpool();
             hdr.write_offset = SPOOL_START_OFFSET;
+            hdr.read_offset = SPOOL_START_OFFSET;
             hdr.record_count = 0;
         }
 
@@ -108,54 +110,18 @@ public:
         uint16_t batMv = cycle.battery_mv;
         memcpy(buffer + offset, &batMv, 2); offset += 2;
 
-        // 1. Wi-Fi Survey (cap at 25 APs)
-        uint8_t surveyCount = (cycle.survey.size() > 25) ? 25 : cycle.survey.size();
-        buffer[offset++] = surveyCount;
-
-        for (uint8_t i = 0; i < surveyCount; i++) {
-            const auto &item = cycle.survey[i];
-            // MAC address (6 bytes)
-            uint8_t mac[6] = {0};
-            parseMac(item.bssid, mac);
-            memcpy(buffer + offset, mac, 6); offset += 6;
-
-            int8_t rssi = (int8_t)item.rssi;
-            buffer[offset++] = (uint8_t)rssi;
-            buffer[offset++] = item.channel;
-            buffer[offset++] = item.quality;
-
-            // SSID (length + string)
-            uint8_t slen = item.ssid.length() > 24 ? 24 : item.ssid.length();
-            buffer[offset++] = slen;
-            if (slen > 0) {
-                memcpy(buffer + offset, item.ssid.c_str(), slen);
-                offset += slen;
-            }
-        }
-
-        // 2. Channel Utilization (13 channels)
+        // 1. Channel Utilization (13 channels: airtime % and unique transmitters)
         uint8_t chanCount = cycle.has_channel_utilization ? cycle.channel_utilization.size() : 0;
         buffer[offset++] = chanCount;
-
         for (uint8_t i = 0; i < chanCount; i++) {
             const auto &co = cycle.channel_utilization[i];
             buffer[offset++] = co.channel;
             buffer[offset++] = (uint8_t)round(co.airtime_pct);
-            uint16_t tx = co.unique_transmitters;
-            memcpy(buffer + offset, &tx, 2); offset += 2;
-            uint16_t mgmt = (co.mgmt_frames > 65535) ? 65535 : (uint16_t)co.mgmt_frames;
-            memcpy(buffer + offset, &mgmt, 2); offset += 2;
-            uint16_t data = (co.data_frames > 65535) ? 65535 : (uint16_t)co.data_frames;
-            memcpy(buffer + offset, &data, 2); offset += 2;
-            uint16_t ctrl = (co.ctrl_frames > 65535) ? 65535 : (uint16_t)co.ctrl_frames;
-            memcpy(buffer + offset, &ctrl, 2); offset += 2;
-            for (int h = 0; h < 4; h++) {
-                uint16_t hv = (co.rssi_hist[h] > 65535) ? 65535 : (uint16_t)co.rssi_hist[h];
-                memcpy(buffer + offset, &hv, 2); offset += 2;
-            }
+            uint8_t tx = (co.unique_transmitters > 255) ? 255 : (uint8_t)co.unique_transmitters;
+            buffer[offset++] = tx;
         }
 
-        // 3. Monitored Networks status
+        // 2. Monitored Networks reliability
         uint8_t netCount = cycle.measurements.size();
         buffer[offset++] = netCount;
         for (uint8_t i = 0; i < netCount; i++) {
@@ -183,25 +149,23 @@ public:
             }
         }
 
-        // 4. Bluetooth status
+        // 3. Bluetooth status (BLE Unique Devices & categories)
         buffer[offset++] = cycle.has_bluetooth ? 1 : 0;
         if (cycle.has_bluetooth) {
-            uint16_t bMacs = cycle.bluetooth.ble_total_macs;
-            memcpy(buffer + offset, &bMacs, 2); offset += 2;
             uint16_t bUniq = cycle.bluetooth.ble_unique_devices;
             memcpy(buffer + offset, &bUniq, 2); offset += 2;
             uint16_t bRand = cycle.bluetooth.ble_random_macs;
             memcpy(buffer + offset, &bRand, 2); offset += 2;
             uint16_t bPub = cycle.bluetooth.ble_public_macs;
             memcpy(buffer + offset, &bPub, 2); offset += 2;
-            buffer[offset++] = (uint8_t)cycle.bluetooth.ble_beacons;
-            buffer[offset++] = (uint8_t)cycle.bluetooth.ble_smartphones;
-            buffer[offset++] = (uint8_t)cycle.bluetooth.ble_wearables;
-            buffer[offset++] = (uint8_t)cycle.bluetooth.ble_audio;
-            buffer[offset++] = (uint8_t)cycle.bluetooth.ble_other;
-            uint16_t cTot = cycle.bluetooth.classic_total;
-            memcpy(buffer + offset, &cTot, 2); offset += 2;
+            uint16_t bMacs = cycle.bluetooth.ble_total_macs;
+            memcpy(buffer + offset, &bMacs, 2); offset += 2;
+            buffer[offset++] = (uint8_t)cycle.bluetooth.classic_total;
         }
+
+        // 4. Wi-Fi Survey (Omitted on 30-min offline records to guarantee 18+ days / 864+ slot retention)
+        uint8_t surveyCount = 0;
+        buffer[offset++] = surveyCount;
 
         // Update record length
         uint16_t totalRecLen = offset;
@@ -212,7 +176,7 @@ public:
         for (size_t b = 0; b < offset; b++) chk ^= buffer[b];
         buffer[offset++] = chk;
 
-        // Check if write_offset exceeds partition limits (wrap around or ring buffer)
+        // Check if write_offset exceeds partition limits (wrap around ring buffer)
         if (hdr.write_offset + offset >= part->size) {
             Serial.println(F("[RawSpool] Flash spool partition full! Wrapping circular buffer to start."));
             hdr.write_offset = SPOOL_START_OFFSET;
@@ -238,13 +202,15 @@ public:
         // Update Header in Sector 0
         updateHeader(part, hdr);
 
-        Serial.printf("[RawSpool] Appended offline record (%u bytes in binary, total: %u records, write head: %u)\n",
-                      (unsigned)offset, (unsigned)hdr.record_count, (unsigned)hdr.write_offset);
+        Serial.printf("[RawSpool] Appended offline record (%u bytes in binary, total: %u records, write head: %u, read head: %u)\n",
+                      (unsigned)offset, (unsigned)hdr.record_count, (unsigned)hdr.write_offset, (unsigned)hdr.read_offset);
         return true;
     }
 
-    // Reconstruct JSON payload array from stored binary records for upload
-    static String readNextBatchJson(const String &stationId, size_t maxBatchRecords = 12) {
+    // Reconstruct JSON payload array for next chunk of stored binary records
+    static String readNextBatchJson(const String &stationId, size_t maxBatchRecords, uint32_t &outNextReadOffset, uint32_t &outBatchCount) {
+        outNextReadOffset = 0;
+        outBatchCount = 0;
         const esp_partition_t *part = getPartition();
         if (!part) return "";
 
@@ -254,7 +220,11 @@ public:
         }
 
         String json = "[";
-        uint32_t readOffset = SPOOL_START_OFFSET;
+        uint32_t readOffset = hdr.read_offset;
+        if (readOffset < SPOOL_START_OFFSET || readOffset >= part->size) {
+            readOffset = SPOOL_START_OFFSET;
+        }
+
         uint32_t count = 0;
         bool first = true;
 
@@ -290,31 +260,7 @@ public:
 
             size_t off = 12;
 
-            // Survey
-            uint8_t surveyCount = buffer[off++];
-            JsonArray arrSurvey = doc["scan_survey"].to<JsonArray>();
-            for (uint8_t s = 0; s < surveyCount; s++) {
-                JsonObject so = arrSurvey.add<JsonObject>();
-                char macStr[18];
-                snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
-                         buffer[off], buffer[off+1], buffer[off+2], buffer[off+3], buffer[off+4], buffer[off+5]);
-                off += 6;
-                so["bssid"] = macStr;
-                so["rssi"] = (int8_t)buffer[off++];
-                so["channel"] = buffer[off++];
-                so["quality"] = buffer[off++];
-                uint8_t slen = buffer[off++];
-                char ssidBuf[25] = {0};
-                if (slen > 0) {
-                    memcpy(ssidBuf, buffer + off, slen);
-                    off += slen;
-                }
-                so["ssid"] = ssidBuf;
-                so["encryption"] = "WPA2";
-                so["band"] = "2.4GHz";
-            }
-
-            // Channels
+            // 1. Channels
             uint8_t chanCount = buffer[off++];
             if (chanCount > 0) {
                 JsonArray arrChan = doc["channel_utilization"].to<JsonArray>();
@@ -322,74 +268,104 @@ public:
                     JsonObject co = arrChan.add<JsonObject>();
                     co["channel"] = buffer[off++];
                     co["airtime_pct"] = buffer[off++];
-                    uint16_t tx = 0; memcpy(&tx, buffer + off, 2); off += 2;
-                    co["unique_transmitters"] = tx;
-                    uint16_t mgmt = 0; memcpy(&mgmt, buffer + off, 2); off += 2;
-                    co["mgmt_frames"] = mgmt;
-                    uint16_t data = 0; memcpy(&data, buffer + off, 2); off += 2;
-                    co["data_frames"] = data;
-                    uint16_t ctrl = 0; memcpy(&ctrl, buffer + off, 2); off += 2;
-                    co["ctrl_frames"] = ctrl;
-                    JsonArray rh = co["rssi_hist"].to<JsonArray>();
-                    for (int h = 0; h < 4; h++) {
-                        uint16_t hv = 0; memcpy(&hv, buffer + off, 2); off += 2;
-                        rh.add(hv);
-                    }
+                    co["unique_transmitters"] = buffer[off++];
+                    co["mgmt_frames"] = 0;
+                    co["data_frames"] = 0;
+                    co["ctrl_frames"] = 0;
                 }
             }
 
-            // Probed Networks
+            // 2. Probed Networks
             uint8_t netCount = buffer[off++];
-            JsonArray arrNet = doc["networks"].to<JsonArray>();
-            for (uint8_t n = 0; n < netCount; n++) {
-                JsonObject no = arrNet.add<JsonObject>();
-                uint8_t nslen = buffer[off++];
-                char nSsid[21] = {0};
-                if (nslen > 0) {
-                    memcpy(nSsid, buffer + off, nslen);
-                    off += nslen;
-                }
-                no["ssid"] = nSsid;
-                int16_t assoc = 0; memcpy(&assoc, buffer + off, 2); off += 2;
-                no["assoc_ms"] = assoc;
-                int16_t dhcp = 0; memcpy(&dhcp, buffer + off, 2); off += 2;
-                no["dhcp_ms"] = dhcp;
-                int16_t cf = 0; memcpy(&cf, buffer + off, 2); off += 2;
-                int16_t gg = 0; memcpy(&gg, buffer + off, 2); off += 2;
-                JsonObject lat = no["http_latencies"].to<JsonObject>();
-                lat["cloudflare"] = cf;
-                lat["google"] = gg;
+            if (netCount > 0) {
+                JsonArray arrNet = doc["networks"].to<JsonArray>();
+                for (uint8_t n = 0; n < netCount; n++) {
+                    JsonObject no = arrNet.add<JsonObject>();
+                    uint8_t nslen = buffer[off++];
+                    char nSsid[21] = {0};
+                    if (nslen > 0) {
+                        memcpy(nSsid, buffer + off, nslen);
+                        off += nslen;
+                    }
+                    no["ssid"] = nSsid;
+                    int16_t assoc = 0; memcpy(&assoc, buffer + off, 2); off += 2;
+                    no["assoc_ms"] = assoc;
+                    int16_t dhcp = 0; memcpy(&dhcp, buffer + off, 2); off += 2;
+                    no["dhcp_ms"] = dhcp;
+                    int16_t cf = 0; memcpy(&cf, buffer + off, 2); off += 2;
+                    int16_t gg = 0; memcpy(&gg, buffer + off, 2); off += 2;
+                    JsonObject lat = no["http_latencies"].to<JsonObject>();
+                    lat["cloudflare"] = cf;
+                    lat["google"] = gg;
 
-                uint8_t stlen = buffer[off++];
-                char stBuf[17] = {0};
-                if (stlen > 0) {
-                    memcpy(stBuf, buffer + off, stlen);
-                    off += stlen;
+                    uint8_t stlen = buffer[off++];
+                    char stBuf[17] = {0};
+                    if (stlen > 0) {
+                        memcpy(stBuf, buffer + off, stlen);
+                        off += stlen;
+                    }
+                    no["status"] = stBuf;
                 }
-                no["status"] = stBuf;
             }
 
-            // Bluetooth Status (if present)
+            // 3. Bluetooth Status
             if (off < recLen) {
                 uint8_t hasBt = buffer[off++];
-                if (hasBt && (off + 15 <= recLen)) {
+                if (hasBt) {
                     JsonObject bt = doc["bluetooth"].to<JsonObject>();
-                    uint16_t bMacs = 0; memcpy(&bMacs, buffer + off, 2); off += 2;
-                    bt["ble_total_macs"] = bMacs;
                     uint16_t bUniq = 0; memcpy(&bUniq, buffer + off, 2); off += 2;
                     bt["ble_unique_devices"] = bUniq;
                     uint16_t bRand = 0; memcpy(&bRand, buffer + off, 2); off += 2;
                     bt["ble_random_macs"] = bRand;
                     uint16_t bPub = 0; memcpy(&bPub, buffer + off, 2); off += 2;
                     bt["ble_public_macs"] = bPub;
-                    JsonObject cat = bt["ble_categories"].to<JsonObject>();
-                    cat["beacons"] = buffer[off++];
-                    cat["smartphones"] = buffer[off++];
-                    cat["wearables"] = buffer[off++];
-                    cat["audio"] = buffer[off++];
-                    cat["other"] = buffer[off++];
-                    uint16_t cTot = 0; memcpy(&cTot, buffer + off, 2); off += 2;
-                    bt["classic_total"] = cTot;
+                    uint16_t bMacs = 0; memcpy(&bMacs, buffer + off, 2); off += 2;
+                    bt["ble_total_macs"] = bMacs;
+                    bt["classic_total"] = buffer[off++];
+                }
+            }
+
+            // 4. Survey
+            if (off < recLen) {
+                uint8_t surveyCount = buffer[off++];
+                if (surveyCount > 0) {
+                    JsonArray arrSurvey = doc["scan_survey"].to<JsonArray>();
+                    for (uint8_t s = 0; s < surveyCount; s++) {
+                        JsonObject so = arrSurvey.add<JsonObject>();
+                        char macStr[18];
+                        snprintf(macStr, sizeof(macStr), "%02x:%02x:%02x:%02x:%02x:%02x",
+                                 buffer[off], buffer[off+1], buffer[off+2], buffer[off+3], buffer[off+4], buffer[off+5]);
+                        off += 6;
+                        so["bssid"] = macStr;
+                        so["rssi"] = (int8_t)buffer[off++];
+                        so["channel"] = buffer[off++];
+                        so["quality"] = buffer[off++];
+
+                        uint8_t plen = buffer[off++];
+                        char pBuf[9] = {0};
+                        if (plen > 0) {
+                            memcpy(pBuf, buffer + off, plen);
+                            off += plen;
+                        }
+                        so["phy_mode"] = pBuf[0] ? pBuf : "11n";
+
+                        uint8_t elen = buffer[off++];
+                        char eBuf[9] = {0};
+                        if (elen > 0) {
+                            memcpy(eBuf, buffer + off, elen);
+                            off += elen;
+                        }
+                        so["encryption"] = eBuf[0] ? eBuf : "WPA2";
+
+                        uint8_t slen = buffer[off++];
+                        char ssidBuf[25] = {0};
+                        if (slen > 0) {
+                            memcpy(ssidBuf, buffer + off, slen);
+                            off += slen;
+                        }
+                        so["ssid"] = ssidBuf;
+                        so["band"] = "2.4 GHz";
+                    }
                 }
             }
 
@@ -404,7 +380,37 @@ public:
         }
 
         json += "]";
+        outNextReadOffset = readOffset;
+        outBatchCount = count;
         return (count > 0) ? json : "";
+    }
+
+    // Confirms successful upload of a batch and advances the read pointer
+    static void confirmBatchUploaded(uint32_t nextReadOffset, uint32_t batchCount) {
+        const esp_partition_t *part = getPartition();
+        if (!part) return;
+
+        SpoolHeader hdr;
+        if (esp_partition_read(part, 0, &hdr, sizeof(hdr)) != ESP_OK || hdr.magic != SPOOL_MAGIC_HEADER) return;
+
+        hdr.read_offset = nextReadOffset;
+        if (hdr.record_count >= batchCount) {
+            hdr.record_count -= batchCount;
+        } else {
+            hdr.record_count = 0;
+        }
+
+        if (hdr.read_offset >= hdr.write_offset || hdr.record_count == 0) {
+            hdr.read_offset = SPOOL_START_OFFSET;
+            hdr.write_offset = SPOOL_START_OFFSET;
+            hdr.record_count = 0;
+            Serial.println(F("[RawSpool] All pending offline records confirmed and cleared. Spool reset to start."));
+        } else {
+            Serial.printf("[RawSpool] Advanced read head to %u (%u records remaining in spool)\n",
+                          hdr.read_offset, hdr.record_count);
+        }
+
+        updateHeader(part, hdr);
     }
 
     static void clearSpool() {
@@ -416,9 +422,10 @@ public:
 
         SpoolHeader hdr;
         hdr.magic = SPOOL_MAGIC_HEADER;
-        hdr.version = 1;
+        hdr.version = 2;
         hdr.record_count = 0;
         hdr.write_offset = SPOOL_START_OFFSET;
+        hdr.read_offset = SPOOL_START_OFFSET;
         hdr.crc32 = 0;
 
         esp_partition_write(part, 0, &hdr, sizeof(hdr));
@@ -427,8 +434,6 @@ public:
 
 private:
     static void updateHeader(const esp_partition_t *part, const SpoolHeader &hdr) {
-        // Overwrite header without erasing sector 0 if only bits are cleared,
-        // or re-erase sector 0 when wrapping.
         esp_partition_erase_range(part, 0, SECTOR_SIZE);
         esp_partition_write(part, 0, &hdr, sizeof(hdr));
     }
@@ -441,3 +446,4 @@ private:
         }
     }
 };
+

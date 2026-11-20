@@ -36,6 +36,7 @@ public:
 
         // Configure LED pin from saved hardware profile
         _led.setPin(_config.hw.status_led_pin);
+        _led.setActiveLow(_config.hw.led_active_low);
         _led.begin();
         pinMode(BOOT_BUTTON_PIN, INPUT_PULLUP);
 
@@ -43,7 +44,7 @@ public:
         Serial.printf(" kreier/wifi Unified Firmware v%s (%s)\n", FIRMWARE_VERSION, _config.hw.board_name);
         Serial.printf(" Target LED: GPIO %d | Battery Pin: GPIO %d\n",
                       _config.hw.status_led_pin, _config.hw.battery_pin);
-        Serial.printf(" Power Bank Keep-Alive: %s\n", _config.powerbank_keepalive ? "ENABLED (500ms/20s)" : "DISABLED");
+        Serial.printf(" Power Bank Keep-Alive: %s\n", _config.powerbank_keepalive ? "ENABLED (120ms Wi-Fi/20s)" : "DISABLED");
         Serial.printf(" Backup Internet: %s (SSID: %s)\n", _config.backup_enabled ? "ENABLED" : "DISABLED", _config.backup_ssid);
         Serial.println(F("========================================"));
 
@@ -53,6 +54,7 @@ public:
             _portal.startPortal(_config, 120);
             _configMgr.loadConfig(_config);
             _led.setPin(_config.hw.status_led_pin);
+            _led.setActiveLow(_config.hw.led_active_low);
         }
 
         // Attempt zero-trust token registration if needed
@@ -64,18 +66,24 @@ public:
 
         // 1. Read battery voltage and determine power mode
         uint16_t batteryMv = BatteryReader::readBatteryMilliVolts(_config.hw);
-        bool onBattery = (_config.hw.battery_pin >= 0 && batteryMv > 0 && batteryMv <= 4200);
+        // Automatic energy-preserving switch: if powerbank_keepalive is enabled, system is on a power bank
+        bool onBattery = (_config.hw.battery_pin >= 0 && batteryMv > 0 && batteryMv <= 4200) || _config.powerbank_keepalive;
 
-        uint32_t targetIntervalSec = onBattery ? 600 : 120; // 10m on battery, 2m if powered (> 4.2V or no battery)
+        uint32_t targetIntervalSec = onBattery ? 600 : 120; // 10m on battery/power bank, 2m if powered (> 4.2V without keepalive)
         bool is10mBoundary = false;
         bool is30mBoundary = false;
 
         if (onBattery) {
-            // Every cycle on battery is a 10-minute cycle
+            // Every cycle on battery or power bank is a 10-minute cycle
             is10mBoundary = true;
             is30mBoundary = (_batteryCycleCount % 3 == 0);
-            Serial.printf("\n>>> [Battery Mode: %u mV] Starting 10-Min Cycle #%u (30-Min Cadence: %s) <<<\n",
-                          batteryMv, (unsigned)_batteryCycleCount, is30mBoundary ? "YES" : "NO");
+            if (_config.powerbank_keepalive && (_config.hw.battery_pin < 0 || batteryMv > 4200)) {
+                Serial.printf("\n>>> [Power Bank Energy Preserving Mode: Keep-Alive 20s] Starting 10-Min Cycle #%u (30-Min Cadence: %s) <<<\n",
+                              (unsigned)_batteryCycleCount, is30mBoundary ? "YES" : "NO");
+            } else {
+                Serial.printf("\n>>> [Battery Mode: %u mV] Starting 10-Min Cycle #%u (30-Min Cadence: %s) <<<\n",
+                              batteryMv, (unsigned)_batteryCycleCount, is30mBoundary ? "YES" : "NO");
+            }
         } else {
             // Powered mode: 2-minute cycle, accumulating into 10-minute interval
             _usbSubcycle++;
@@ -93,22 +101,25 @@ public:
             _portal.startPortal(_config, 60);
             _configMgr.loadConfig(_config);
             _led.setPin(_config.hw.status_led_pin);
+            _led.setActiveLow(_config.hw.led_active_low);
             ensureDeviceRegistered();
             return;
         }
 
         // 3. Promiscuous 13-channel congestion survey (Task 3)
-        // On battery: every 30 minutes; Powered: every 2 minutes
+        // On battery/power bank: every 30 minutes with 800ms dwell; Powered: every 2 minutes with 2000ms dwell
         bool shouldScanChannels = onBattery ? is30mBoundary : true;
         std::vector<ChannelUtilizationItem> chanResults;
         if (shouldScanChannels) {
             bool bootPressed = false;
-            chanResults = ChannelAnalyzer::measureChannels(2000, &_led, &bootPressed);
+            uint32_t dwellMs = onBattery ? 800 : 2000;
+            chanResults = ChannelAnalyzer::measureChannels(dwellMs, &_led, &bootPressed);
             if (bootPressed) {
                 Serial.println(F("[Main] BOOT button pressed during channel scan! Launching setup portal..."));
                 _portal.startPortal(_config, 60);
                 _configMgr.loadConfig(_config);
                 _led.setPin(_config.hw.status_led_pin);
+                _led.setActiveLow(_config.hw.led_active_low);
                 ensureDeviceRegistered();
                 return;
             }
@@ -230,10 +241,8 @@ public:
         }
         _led.setOff();
 
-        // Record 30-minute revolving slot into ChannelHistory buffer (kept in RAM; written to flash only if offline)
-        if (is30mBoundary) {
-            ChannelHistory::instance().recordCycle(_ramChan, _ramBt.ble_unique_devices, _ramBt.classic_total, batteryMv, currentEpoch);
-        }
+        // Record cycle into 30-minute revolving slot in ChannelHistory buffer (kept in RAM; written to flash only if offline)
+        ChannelHistory::instance().recordCycle(_ramChan, _ramBt.ble_unique_devices, _ramBt.ble_random_macs, _ramBt.classic_total, batteryMv, currentEpoch);
 
         // Package cycle telemetry
         CycleTelemetry cycle;
@@ -293,11 +302,16 @@ public:
             Serial.println(F("[Main] No monitored networks or backup 'S24' visible; skipping Wi-Fi connect to preserve battery."));
         }
 
-        // Flash persistence ONLY if upload is impossible
+        // Flash persistence ONLY if upload is impossible and at 30-minute boundary
+        // Both battery powered and permanently powered only need 30-min average values in the 18-day ring buffer
         if (!uploadSuccess) {
-            Serial.println(F("[Main] Offline / Upload not possible: Persisting 30-min channel history and buffering cycle to flash spool."));
-            ChannelHistory::instance().saveToFlash();
-            SpoolManager::appendCycle(cycle);
+            if (is30mBoundary) {
+                Serial.println(F("[Main] Offline / Upload not possible: Persisting 30-min consolidated history slot to flash ring buffer."));
+                ChannelHistory::instance().saveToFlash();
+                SpoolManager::appendCycle(cycle);
+            } else {
+                Serial.println(F("[Main] Offline / Upload not possible: Accumulating intermediate metrics in RAM until 30-min boundary to preserve flash & battery."));
+            }
         }
 
         // Reset 10-minute RAM accumulators
@@ -320,13 +334,18 @@ public:
         enterLightSleep(sleepMs);
 
         // Check wake up cause
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+        if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
+#else
         if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
+#endif
             Serial.println(F("[Main] Woken up by BOOT button!"));
             if (checkBootButtonHold(2500)) {
                 Serial.println(F("[Main] BOOT button held! Launching captive portal..."));
                 _portal.startPortal(_config, 60);
                 _configMgr.loadConfig(_config);
                 _led.setPin(_config.hw.status_led_pin);
+                _led.setActiveLow(_config.hw.led_active_low);
                 ensureDeviceRegistered();
             }
         }
@@ -386,7 +405,7 @@ private:
                     break;
                 }
             }
-            if (!found && _ramBt.ble_devices.size() < 25) {
+            if (!found && _ramBt.ble_devices.size() < 60) {
                 _ramBt.ble_devices.push_back(dev);
             }
         }
@@ -464,15 +483,25 @@ private:
             ChannelHistory::instance().calibrateTimestamps(currentEpoch);
             ChannelHistory::instance().submitPendingHistory(_config.worker_url, token, _config.station_id);
 
-            // 2. If there is pending data from past offline cycles, upload it first
+            // 2. If there is pending data from past offline cycles, upload all backlog in chunks of 12
             if (SpoolManager::hasPendingData()) {
-                Serial.printf("[Main] Found %u pending offline records in flash spool. Uploading backlog...\n",
+                Serial.printf("[Main] Found %u pending offline records in flash spool. Uploading backlog in chunks...\n",
                               (unsigned)SpoolManager::getRecordCount());
-                String spooledBatch = SpoolManager::readNextBatchJson(_config.station_id);
-                if (spooledBatch.length() > 2) {
+                while (SpoolManager::hasPendingData()) {
+                    uint32_t nextOffset = 0;
+                    uint32_t batchCount = 0;
+                    String spooledBatch = SpoolManager::readNextBatchJson(_config.station_id, 12, nextOffset, batchCount);
+                    if (batchCount == 0 || spooledBatch.length() <= 2) break;
+
+                    Serial.printf("[Main] Uploading backlog chunk (%u records, remaining: %u)...\n",
+                                  (unsigned)batchCount, (unsigned)SpoolManager::getRecordCount());
                     if (ApiClient::uploadTelemetry(_config.worker_url, token, spooledBatch)) {
-                        SpoolManager::clearSpool();
-                        Serial.println(F("[Main] Offline backlog successfully transmitted and cleared."));
+                        SpoolManager::confirmBatchUploaded(nextOffset, batchCount);
+                        Serial.printf("[Main] Chunk of %u records uploaded successfully.\n", (unsigned)batchCount);
+                        delay(50);
+                    } else {
+                        Serial.println(F("[Main] Backlog chunk upload failed; will retry remaining data on next cycle."));
+                        break;
                     }
                 }
             }
@@ -771,14 +800,19 @@ private:
     void enterLightSleep(uint32_t sleepDurationMs) {
         Serial.printf("[Main] Entering Light Sleep for %u seconds (Power Bank Keep-Alive: %s)...\n",
                       (unsigned)(sleepDurationMs / 1000),
-                      _config.powerbank_keepalive ? "ENABLED (500ms pulse every 20s)" : "DISABLED");
+                      _config.powerbank_keepalive ? "ENABLED (120ms Wi-Fi burst / 20s)" : "DISABLED");
         Serial.flush();
 
         WiFi.disconnect(true);
         WiFi.mode(WIFI_OFF);
         _led.setOff();
 
-        esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+        gpio_wakeup_enable((gpio_num_t)BOOT_BUTTON_PIN, GPIO_INTR_LOW_LEVEL);
+        esp_sleep_enable_gpio_wakeup();
+#else
+        esp_sleep_enable_ext0_wakeup((gpio_num_t)BOOT_BUTTON_PIN, 0);
+#endif
 
         if (!_config.powerbank_keepalive) {
             uint64_t sleepUs = ((uint64_t)sleepDurationMs) * 1000ULL;
@@ -786,21 +820,32 @@ private:
             esp_light_sleep_start();
         } else {
             uint32_t remainingMs = sleepDurationMs;
-            const uint32_t INTERVAL_SLEEP_MS = 20000; // 20 seconds
-            const uint32_t WAKE_PULSE_MS = 500;       // 500 ms
+            const uint32_t INTERVAL_SLEEP_MS = 20000; // 20 seconds (energy-optimized keep-alive pulse)
+            const uint32_t WAKE_PULSE_MS = 120;       // 120 ms high-current burst
 
             while (remainingMs > 0) {
                 uint32_t chunkSleepMs = (remainingMs > INTERVAL_SLEEP_MS) ? INTERVAL_SLEEP_MS : remainingMs;
                 uint64_t chunkSleepUs = ((uint64_t)chunkSleepMs) * 1000ULL;
                 esp_sleep_enable_timer_wakeup(chunkSleepUs);
-                esp_sleep_enable_ext0_wakeup(GPIO_NUM_0, 0);
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+                gpio_wakeup_enable((gpio_num_t)BOOT_BUTTON_PIN, GPIO_INTR_LOW_LEVEL);
+                esp_sleep_enable_gpio_wakeup();
+#else
+                esp_sleep_enable_ext0_wakeup((gpio_num_t)BOOT_BUTTON_PIN, 0);
+#endif
 
                 esp_light_sleep_start();
 
                 // If woken up by BOOT button, exit sleep immediately
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+                if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
+                    break;
+                }
+#else
                 if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
                     break;
                 }
+#endif
 
                 if (remainingMs > chunkSleepMs) {
                     remainingMs -= chunkSleepMs;
@@ -808,9 +853,23 @@ private:
                     break;
                 }
 
-                // Keep-alive pulse: wake for 500 ms with active current draw to keep power bank awake
+                // Keep-alive pulse:
+                // Baseline draw without Wi-Fi is only ~18mA on ESP32-C3, which causes USB power banks to auto shut-off.
+                // We spike consumption to ~120-180mA by turning on LED, activating Wi-Fi modem,
+                // triggering active RF probe transmissions, and running a busy CPU burn loop for 120 ms.
                 _led.setSolid(true);
-                delay(WAKE_PULSE_MS);
+                WiFi.mode(WIFI_STA);
+                WiFi.scanNetworks(true, false);
+
+                uint32_t pulseStart = millis();
+                volatile uint32_t burnCounter = 0;
+                while (millis() - pulseStart < WAKE_PULSE_MS) {
+                    burnCounter += 1;
+                }
+
+                WiFi.scanDelete();
+                WiFi.disconnect(true);
+                WiFi.mode(WIFI_OFF);
                 _led.setOff();
 
                 if (remainingMs > WAKE_PULSE_MS) {

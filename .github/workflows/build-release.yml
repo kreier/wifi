@@ -1,37 +1,35 @@
-name: Build and Release ESP32 Firmware
+name: Build & Release Firmware
 
 on:
   push:
     tags:
-      - "v*"
+      - 'v*'
   workflow_dispatch:
     inputs:
       version:
-        description: "Release Version Tag (e.g. v0.9.0)"
+        description: "Release Version Tag (e.g. v1.1.8)"
         required: true
-        default: "v0.9.0"
+        default: "v1.1.8"
 
 permissions:
   contents: write
 
 jobs:
-  build:
-    name: Build ESP32 Unified Firmware
+  build-and-release:
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v5
+        uses: actions/checkout@v4
 
       - name: Set up Python
-        uses: actions/setup-python@v6
+        uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: '3.11'
 
       - name: Install PlatformIO
         run: |
-          python -m pip install --upgrade pip
-          pip install platformio
+          pip install --upgrade platformio
 
       - name: Determine Version Tag
         id: vars
@@ -42,21 +40,26 @@ jobs:
             TAG="${GITHUB_REF#refs/tags/}"
           fi
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
-          echo "Clean version: ${TAG}"
+          echo "Building firmware for version tag: ${TAG}"
 
-      - name: Build Firmware with PlatformIO
+      - name: Build Unified ESP32 Firmware (ESP32 & ESP32-C3)
         run: |
           cd firmware
-          pio run -e esp32dev | tee ../pio_build.log
+          pio run -e esp32dev | tee ../pio_build_esp32.log
+          pio run -e esp32c3 | tee ../pio_build_esp32c3.log
           cd ..
 
-      - name: Package Firmware Assets & Generate Release Notes
+      - name: Stage Artifacts & Compute Checksums
         run: |
           TAG="${{ steps.vars.outputs.tag }}"
           mkdir -p release_assets
           cp firmware/.pio/build/esp32dev/firmware.bin release_assets/firmware-esp32-${TAG}.bin
           cp firmware/.pio/build/esp32dev/partitions.bin release_assets/partitions-esp32-${TAG}.bin
           cp firmware/.pio/build/esp32dev/bootloader.bin release_assets/bootloader-esp32-${TAG}.bin
+          
+          cp firmware/.pio/build/esp32c3/firmware.bin release_assets/firmware-esp32c3-${TAG}.bin
+          cp firmware/.pio/build/esp32c3/partitions.bin release_assets/partitions-esp32c3-${TAG}.bin
+          cp firmware/.pio/build/esp32c3/bootloader.bin release_assets/bootloader-esp32c3-${TAG}.bin
           
           BOOT_APP0=$(find ~/.platformio -name "boot_app0.bin" 2>/dev/null | head -n 1)
           if [ -n "$BOOT_APP0" ] && [ -f "$BOOT_APP0" ]; then
@@ -66,6 +69,7 @@ jobs:
           python3 -c "
           import os
           tag = '${TAG}'
+          # Standard ESP32 merge (bootloader @ 0x1000)
           fw = open('release_assets/firmware-esp32-' + tag + '.bin', 'rb').read()
           pt = open('release_assets/partitions-esp32-' + tag + '.bin', 'rb').read()
           bl = open('release_assets/bootloader-esp32-' + tag + '.bin', 'rb').read()
@@ -77,6 +81,18 @@ jobs:
               buf[0xe000:0xe000+len(ba)] = ba
           buf[0x10000:0x10000+len(fw)] = fw
           open('release_assets/firmware-esp32-merged-' + tag + '.bin', 'wb').write(buf)
+
+          # ESP32-C3 merge (bootloader @ 0x0)
+          fw_c3 = open('release_assets/firmware-esp32c3-' + tag + '.bin', 'rb').read()
+          pt_c3 = open('release_assets/partitions-esp32c3-' + tag + '.bin', 'rb').read()
+          bl_c3 = open('release_assets/bootloader-esp32c3-' + tag + '.bin', 'rb').read()
+          buf_c3 = bytearray([0xFF] * (0x10000 + len(fw_c3)))
+          buf_c3[0x0:0x0+len(bl_c3)] = bl_c3
+          buf_c3[0x8000:0x8000+len(pt_c3)] = pt_c3
+          if ba:
+              buf_c3[0xe000:0xe000+len(ba)] = ba
+          buf_c3[0x10000:0x10000+len(fw_c3)] = fw_c3
+          open('release_assets/firmware-esp32c3-merged-' + tag + '.bin', 'wb').write(buf_c3)
           "
 
           python3 scripts/generate-release-notes.py "${TAG}"
@@ -85,8 +101,12 @@ jobs:
           sha256sum firmware-esp32-${TAG}.bin > checksums.txt
           sha256sum partitions-esp32-${TAG}.bin >> checksums.txt
           sha256sum bootloader-esp32-${TAG}.bin >> checksums.txt
+          sha256sum firmware-esp32c3-${TAG}.bin >> checksums.txt
+          sha256sum partitions-esp32c3-${TAG}.bin >> checksums.txt
+          sha256sum bootloader-esp32c3-${TAG}.bin >> checksums.txt
           if [ -f boot_app0.bin ]; then sha256sum boot_app0.bin >> checksums.txt; fi
           if [ -f firmware-esp32-merged-${TAG}.bin ]; then sha256sum firmware-esp32-merged-${TAG}.bin >> checksums.txt; fi
+          if [ -f firmware-esp32c3-merged-${TAG}.bin ]; then sha256sum firmware-esp32c3-merged-${TAG}.bin >> checksums.txt; fi
           cat checksums.txt
 
       - name: Upload to GitHub Release
@@ -94,7 +114,7 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
         with:
           tag_name: ${{ steps.vars.outputs.tag }}
-          name: Release ${{ steps.vars.outputs.tag }}
+          name: "Release ${{ steps.vars.outputs.tag }}"
           draft: false
           prerelease: false
           body_path: release_body.md
@@ -102,8 +122,12 @@ jobs:
             release_assets/firmware-esp32-${{ steps.vars.outputs.tag }}.bin
             release_assets/partitions-esp32-${{ steps.vars.outputs.tag }}.bin
             release_assets/bootloader-esp32-${{ steps.vars.outputs.tag }}.bin
-            release_assets/boot_app0.bin
             release_assets/firmware-esp32-merged-${{ steps.vars.outputs.tag }}.bin
+            release_assets/firmware-esp32c3-${{ steps.vars.outputs.tag }}.bin
+            release_assets/partitions-esp32c3-${{ steps.vars.outputs.tag }}.bin
+            release_assets/bootloader-esp32c3-${{ steps.vars.outputs.tag }}.bin
+            release_assets/firmware-esp32c3-merged-${{ steps.vars.outputs.tag }}.bin
+            release_assets/boot_app0.bin
             release_assets/checksums.txt
 
       - name: Upload to Cloudflare R2 (Backup / Zero-Egress Primary)

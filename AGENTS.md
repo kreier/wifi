@@ -110,7 +110,7 @@ When modifying or refactoring this repository, agents **must** adhere to the fol
 
 ### B. Flash Wear & Memory Safety
 * **In-memory first**: ESP32 normal online cycles transmit telemetry directly from RAM without touching SPI flash memory.
-* **Raw flash partition spooling**: Spooling uses a raw 192 KB binary partition (`raw_spool` defined in `min_spiffs.csv`) accessed via direct SPI flash block reads/writes (`esp_partition_read`/`write`). **Never** reintroduce LittleFS or SPIFFS for telemetry logs.
+* **18-Day Offline Ring Buffer**: Spooling uses a raw 192 KB binary partition (`raw_spool` defined in `min_spiffs.csv`) accessed via direct SPI flash block reads/writes (`esp_partition_read`/`write`). When offline, intermediate cycles accumulate in RAM; consolidated 30-minute average slots (~110-120 bytes) are written to flash, guaranteeing 18 to 31+ days of retention. Backlog is drained via chunked transactional uploads (`confirmBatchUploaded`). **Never** reintroduce LittleFS or SPIFFS for telemetry logs.
 * **Zero-Redirect OTA Streaming**: The ESP32 `HTTPUpdate` client struggles with HTTP 302/307 redirects due to memory constraints during TLS re-negotiation. Binary downloads must be served as direct octet-streams via the Worker proxy route (`/api/ota/download/:filename`).
 
 ### C. Thread Safety & lwIP Sockets
@@ -135,6 +135,7 @@ The firmware operates on a dynamic hardware profile model configured during capt
 | **BOARD_T18** (LILYGO T18) | GPIO 5 | GPIO 35 | 0.50f (100k/100k) | Standard LiPo single-cell |
 | **BOARD_T8** (LILYGO T8) | GPIO 21 | GPIO 35 | 0.50f (100k/100k) | Standard LiPo single-cell |
 | **BOARD_DEVKIT** (DevKit V1) | GPIO 2 | -1 (Disabled) | 0.50f | AC / USB powered |
+| **BOARD_C3_SUPERMINI** (ESP32-C3) | GPIO 8 (Active Low) | -1 (Disabled) | 0.50f | RISC-V Single-Core, USB Power Bank / 5V |
 | **BOARD_CUSTOM** | User-defined | User-defined | User-defined | Custom GPIOs |
 
 ### Battery Voltage Calculations

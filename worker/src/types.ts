@@ -305,4 +305,16 @@ export interface BatteryHistoryRecord {
   battery_mv: number;
 }
 
+export interface OutlierRecord {
+  id: number;
+  table: string;
+  station_id: string;
+  timestamp: number;
+  date_formatted: string;
+  metric: string;
+  value: string;
+  reason: string;
+  severity: "critical" | "warning";
+}
+
 

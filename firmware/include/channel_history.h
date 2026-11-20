@@ -30,6 +30,7 @@ struct ChannelSlotRecord {
     uint8_t  valid;             // 1 = slot contains valid data, 0 = empty
     uint8_t  reserved;          // padding
     uint16_t ble_unique_devices;// unique BLE devices count (max in 30-min slot)
+    uint16_t ble_random_macs;   // random BLE MACs count (max in 30-min slot)
     uint16_t classic_devices;   // classic Bluetooth devices count (max in 30-min slot)
     uint16_t battery_mv;        // battery voltage in mV (or 0 if none)
     uint16_t max_airtime_pct;   // overall max airtime percentage across 13 channels
@@ -87,10 +88,11 @@ public:
     // Accumulates cycle measurements into the corresponding 30-minute average/max slot
     void recordCycle(const std::vector<ChannelUtilizationItem> &items,
                      uint16_t bleUniqueDevices,
+                     uint16_t bleRandomMacs,
                      uint16_t classicDevices,
                      uint16_t batteryMv,
                      uint64_t epoch) {
-        if (items.empty() && bleUniqueDevices == 0 && classicDevices == 0 && batteryMv == 0) return;
+        if (items.empty() && bleUniqueDevices == 0 && bleRandomMacs == 0 && classicDevices == 0 && batteryMv == 0) return;
 
         uint32_t uptimeSec = millis() / 1000;
         uint32_t slotTs = 0;
@@ -137,14 +139,15 @@ public:
                 }
             }
             if (bleUniqueDevices > slot.ble_unique_devices) slot.ble_unique_devices = bleUniqueDevices;
+            if (bleRandomMacs > slot.ble_random_macs) slot.ble_random_macs = bleRandomMacs;
             if (classicDevices > slot.classic_devices) slot.classic_devices = classicDevices;
             if (batteryMv > 0) slot.battery_mv = batteryMv;
 
             slot.sample_count = nextN;
             slot.transmitted = 0; // New cycle added to 30-min record; mark pending upload
-            Serial.printf("[ChannelHistory] Averaged cycle into 30-min slot %u (sample count: %u, BLE: %u, Classic: %u, Bat: %u mV)\n",
+            Serial.printf("[ChannelHistory] Averaged cycle into 30-min slot %u (sample count: %u, BLE: %u, RPA: %u, Classic: %u, Bat: %u mV)\n",
                           (unsigned)slotIdx, (unsigned)nextN, (unsigned)slot.ble_unique_devices,
-                          (unsigned)slot.classic_devices, (unsigned)slot.battery_mv);
+                          (unsigned)slot.ble_random_macs, (unsigned)slot.classic_devices, (unsigned)slot.battery_mv);
         } else {
             // New 30-minute interval: reset slot and populate initial measurement
             slot.valid = 1;
@@ -153,6 +156,7 @@ public:
             slot.sample_count = 1;
             slot.transmitted = 0;
             slot.ble_unique_devices = bleUniqueDevices;
+            slot.ble_random_macs = bleRandomMacs;
             slot.classic_devices = classicDevices;
             slot.battery_mv = batteryMv;
             slot.max_airtime_pct = 0;
@@ -174,22 +178,26 @@ public:
                     }
                 }
             }
-            Serial.printf("[ChannelHistory] Initialized 30-min slot %u (timestamp: %u, BLE: %u, Classic: %u, Bat: %u mV)\n",
+            Serial.printf("[ChannelHistory] Initialized 30-min slot %u (timestamp: %u, BLE: %u, RPA: %u, Classic: %u, Bat: %u mV)\n",
                           (unsigned)slotIdx, (unsigned)slotTs, (unsigned)slot.ble_unique_devices,
-                          (unsigned)slot.classic_devices, (unsigned)slot.battery_mv);
+                          (unsigned)slot.ble_random_macs, (unsigned)slot.classic_devices, (unsigned)slot.battery_mv);
         }
     }
 
     // Calibrates timestamps of slots recorded while offline once NTP sync succeeds
     void calibrateTimestamps(uint64_t currentEpoch) {
         if (currentEpoch < 1700000000) return;
-        uint32_t nowSec = millis() / 1000;
+        uint8_t currentSlotIdx = (uint8_t)((currentEpoch / 1800) % CHAN_HIST_SLOTS);
         for (int i = 0; i < CHAN_HIST_SLOTS; i++) {
             if (_slots[i].valid && _slots[i].timestamp < 1700000000) {
-                uint32_t elapsed = (nowSec >= _slots[i].relative_sec) ? (nowSec - _slots[i].relative_sec) : 0;
-                uint64_t realTs = (currentEpoch > elapsed) ? (currentEpoch - elapsed) : currentEpoch;
-                _slots[i].timestamp = (uint32_t)((realTs / 1800) * 1800);
-                Serial.printf("[ChannelHistory] Calibrated offline slot %d to UTC %lu\n", i, (unsigned long)_slots[i].timestamp);
+                // Calculate how many 30-min slots ago this slot was recorded
+                uint8_t slotsAgo = (currentSlotIdx >= i) ? (currentSlotIdx - i) : (CHAN_HIST_SLOTS + currentSlotIdx - i);
+                uint64_t realTs = (currentEpoch >= (uint64_t)slotsAgo * 1800)
+                    ? (((currentEpoch - (uint64_t)slotsAgo * 1800) / 1800) * 1800)
+                    : ((currentEpoch / 1800) * 1800);
+                _slots[i].timestamp = (uint32_t)realTs;
+                Serial.printf("[ChannelHistory] Calibrated offline slot %d to UTC %lu (%u slots ago)\n",
+                              i, (unsigned long)_slots[i].timestamp, (unsigned)slotsAgo);
             }
         }
     }
@@ -226,11 +234,11 @@ public:
                 obj["station_id"] = stationId;
                 obj["timestamp"] = slot.timestamp;
 
-                if (slot.ble_unique_devices > 0 || slot.classic_devices > 0) {
-                    JsonObject bt = obj["bluetooth"].to<JsonObject>();
-                    if (slot.ble_unique_devices > 0) bt["ble_unique_devices"] = slot.ble_unique_devices;
-                    if (slot.classic_devices > 0) bt["classic_total"] = slot.classic_devices;
-                }
+                JsonObject bt = obj["bluetooth"].to<JsonObject>();
+                bt["ble_unique_devices"] = slot.ble_unique_devices;
+                bt["ble_random_macs"] = slot.ble_random_macs;
+                bt["classic_total"] = slot.classic_devices;
+
                 if (slot.battery_mv > 0) {
                     obj["battery_mv"] = slot.battery_mv;
                 }
