@@ -334,7 +334,7 @@ public:
         enterLightSleep(sleepMs);
 
         // Check wake up cause
-#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI) || defined(CONFIG_IDF_TARGET_ESP32C5) || defined(TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6)
         if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
 #else
         if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_EXT0) {
@@ -807,7 +807,7 @@ private:
         WiFi.mode(WIFI_OFF);
         _led.setOff();
 
-#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI) || defined(CONFIG_IDF_TARGET_ESP32C5) || defined(TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6)
         gpio_wakeup_enable((gpio_num_t)BOOT_BUTTON_PIN, GPIO_INTR_LOW_LEVEL);
         esp_sleep_enable_gpio_wakeup();
 #else
@@ -827,7 +827,7 @@ private:
                 uint32_t chunkSleepMs = (remainingMs > INTERVAL_SLEEP_MS) ? INTERVAL_SLEEP_MS : remainingMs;
                 uint64_t chunkSleepUs = ((uint64_t)chunkSleepMs) * 1000ULL;
                 esp_sleep_enable_timer_wakeup(chunkSleepUs);
-#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI) || defined(CONFIG_IDF_TARGET_ESP32C5) || defined(TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6)
                 gpio_wakeup_enable((gpio_num_t)BOOT_BUTTON_PIN, GPIO_INTR_LOW_LEVEL);
                 esp_sleep_enable_gpio_wakeup();
 #else
@@ -837,7 +837,7 @@ private:
                 esp_light_sleep_start();
 
                 // If woken up by BOOT button, exit sleep immediately
-#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI) || defined(CONFIG_IDF_TARGET_ESP32C5) || defined(TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C6)
                 if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_GPIO) {
                     break;
                 }

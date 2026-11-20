@@ -3,7 +3,7 @@
 #include <Arduino.h>
 
 // Standard ESP32 BOOT button (Active LOW with pullup)
-#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI) || defined(CONFIG_IDF_TARGET_ESP32C5) || defined(TARGET_ESP32C5)
 #define BOOT_BUTTON_PIN 9
 #else
 #define BOOT_BUTTON_PIN 0
@@ -15,12 +15,14 @@ enum BoardType : uint8_t {
     BOARD_T8 = 1,
     BOARD_DEVKIT = 2,
     BOARD_CUSTOM = 3,
-    BOARD_C3_SUPERMINI = 4
+    BOARD_C3_SUPERMINI = 4,
+    BOARD_ESP32S3 = 5,
+    BOARD_ESP32C5 = 6
 };
 
 struct HardwareProfile {
     uint8_t board_type;      // BoardType enum
-    char board_name[32];     // e.g. "T18", "T8", "DevKitV1", "Custom", "C3SuperMini"
+    char board_name[32];     // e.g. "T18", "T8", "DevKitV1", "Custom", "C3SuperMini", "ESP32S3", "ESP32C5"
     int8_t status_led_pin;   // GPIO pin for status LED (-1 if none)
     int8_t rgb_led_pin;      // GPIO pin for RGB LED (-1 if none)
     int8_t battery_pin;      // ADC GPIO pin for battery reading (-1 if none)
@@ -30,7 +32,11 @@ struct HardwareProfile {
     bool led_active_low;     // Active LOW LED (ESP32-C3 Super Mini GPIO 8)
 
     HardwareProfile() {
-#if defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
+#if defined(CONFIG_IDF_TARGET_ESP32C5) || defined(TARGET_ESP32C5)
+        setPreset(BOARD_ESP32C5);
+#elif defined(CONFIG_IDF_TARGET_ESP32S3) || defined(TARGET_ESP32S3)
+        setPreset(BOARD_ESP32S3);
+#elif defined(CONFIG_IDF_TARGET_ESP32C3) || defined(TARGET_C3_SUPERMINI)
         setPreset(BOARD_C3_SUPERMINI);
 #else
         setPreset(BOARD_T18);
@@ -69,6 +75,24 @@ struct HardwareProfile {
                 battery_pin = -1;
                 battery_divider = 0.50f;
                 led_active_low = true;
+                break;
+            case BOARD_ESP32S3:
+                strncpy(board_name, "ESP32S3", sizeof(board_name) - 1);
+                status_led_pin = 2;
+                battery_pin = -1;
+                battery_divider = 0.50f;
+                has_5ghz = false;
+                has_wifi6 = false;
+                led_active_low = false;
+                break;
+            case BOARD_ESP32C5:
+                strncpy(board_name, "ESP32C5", sizeof(board_name) - 1);
+                status_led_pin = 8;
+                battery_pin = -1;
+                battery_divider = 0.33f;
+                has_5ghz = true;
+                has_wifi6 = true;
+                led_active_low = false;
                 break;
             case BOARD_CUSTOM:
             default:

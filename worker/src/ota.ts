@@ -134,8 +134,12 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
   // Determine binary download URL:
   // Primary: Cloudflare R2 bucket proxy via Worker
   // Fallback: GitHub Releases direct link or Worker proxy
-  const isC3 = board.toLowerCase().includes("c3");
-  const filename = isC3 ? `firmware-esp32c3-v${targetVersion}.bin` : `firmware-esp32-v${targetVersion}.bin`;
+  let archPrefix = "esp32";
+  const bLow = board.toLowerCase();
+  if (bLow.includes("c3")) archPrefix = "esp32c3";
+  else if (bLow.includes("s3")) archPrefix = "esp32s3";
+  else if (bLow.includes("c5")) archPrefix = "esp32c5";
+  const filename = `firmware-${archPrefix}-v${targetVersion}.bin`;
   let downloadUrl = station?.ota_url?.trim();
 
   if (!downloadUrl) {
@@ -202,18 +206,34 @@ export async function handleFirmwareDownload(filename: string, request: Request,
     releaseFilename = `firmware-esp32-${tag}.bin`;
   } else if (filename === "firmware-c3.bin" || filename === "firmware-esp32c3.bin") {
     releaseFilename = `firmware-esp32c3-${tag}.bin`;
+  } else if (filename === "firmware-s3.bin" || filename === "firmware-esp32s3.bin") {
+    releaseFilename = `firmware-esp32s3-${tag}.bin`;
+  } else if (filename === "firmware-c5.bin" || filename === "firmware-esp32c5.bin") {
+    releaseFilename = `firmware-esp32c5-${tag}.bin`;
   } else if (filename === "partitions.bin") {
     releaseFilename = `partitions-esp32-${tag}.bin`;
   } else if (filename === "partitions-c3.bin" || filename === "partitions-esp32c3.bin") {
     releaseFilename = `partitions-esp32c3-${tag}.bin`;
+  } else if (filename === "partitions-s3.bin" || filename === "partitions-esp32s3.bin") {
+    releaseFilename = `partitions-esp32s3-${tag}.bin`;
+  } else if (filename === "partitions-c5.bin" || filename === "partitions-esp32c5.bin") {
+    releaseFilename = `partitions-esp32c5-${tag}.bin`;
   } else if (filename === "bootloader.bin") {
     releaseFilename = `bootloader-esp32-${tag}.bin`;
   } else if (filename === "bootloader-c3.bin" || filename === "bootloader-esp32c3.bin") {
     releaseFilename = `bootloader-esp32c3-${tag}.bin`;
+  } else if (filename === "bootloader-s3.bin" || filename === "bootloader-esp32s3.bin") {
+    releaseFilename = `bootloader-esp32s3-${tag}.bin`;
+  } else if (filename === "bootloader-c5.bin" || filename === "bootloader-esp32c5.bin") {
+    releaseFilename = `bootloader-esp32c5-${tag}.bin`;
   } else if (filename === "firmware-esp32-merged.bin") {
     releaseFilename = `firmware-esp32-merged-${tag}.bin`;
   } else if (filename === "firmware-esp32c3-merged.bin") {
     releaseFilename = `firmware-esp32c3-merged-${tag}.bin`;
+  } else if (filename === "firmware-esp32s3-merged.bin") {
+    releaseFilename = `firmware-esp32s3-merged-${tag}.bin`;
+  } else if (filename === "firmware-esp32c5-merged.bin") {
+    releaseFilename = `firmware-esp32c5-merged-${tag}.bin`;
   }
 
   const githubUrl = `https://github.com/kreier/wifi/releases/download/${tag}/${releaseFilename}`;

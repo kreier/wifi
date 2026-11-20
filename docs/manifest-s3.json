@@ -1,0 +1,17 @@
+{
+  "name": "Wi-Fi Monitor - ESP32-S3",
+  "version": "1.1.8",
+  "funding_url": "https://github.com/kreier/wifi",
+  "new_install_prompt_erase": true,
+  "builds": [
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "firmware/bootloader-s3.bin", "offset": 0 },
+        { "path": "firmware/partitions-s3.bin", "offset": 32768 },
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-s3.bin", "offset": 65536 }
+      ]
+    }
+  ]
+}

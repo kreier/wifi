@@ -21,6 +21,24 @@
         { "path": "firmware/boot_app0.bin", "offset": 57344 },
         { "path": "firmware/firmware-c3.bin", "offset": 65536 }
       ]
+    },
+    {
+      "chipFamily": "ESP32-S3",
+      "parts": [
+        { "path": "firmware/bootloader-s3.bin", "offset": 0 },
+        { "path": "firmware/partitions-s3.bin", "offset": 32768 },
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-s3.bin", "offset": 65536 }
+      ]
+    },
+    {
+      "chipFamily": "ESP32-C5",
+      "parts": [
+        { "path": "firmware/bootloader-c5.bin", "offset": 0 },
+        { "path": "firmware/partitions-c5.bin", "offset": 32768 },
+        { "path": "firmware/boot_app0.bin", "offset": 57344 },
+        { "path": "firmware/firmware-c5.bin", "offset": 65536 }
+      ]
     }
   ]
 }

@@ -64,7 +64,11 @@ dkms.conf
 !docs/firmware/*.bin
 *.elf
 
-# Node / Cloudflare Workers
+# Release assets
+release_assets/
+release_body.md
+*.log
+
 node_modules/
 .wrangler/
 dist/

@@ -49,12 +49,34 @@ def main():
     c3_log = "pio_build_esp32c3.log"
     c3_flash, c3_ram, c3_free_flash, c3_free_pct = parse_utilization(c3_log, c3_fw)
 
+    # ESP32-S3
+    s3_fw = f"release_assets/firmware-esp32s3-{tag}.bin"
+    if not os.path.exists(s3_fw):
+        if os.path.exists("firmware/.pio/build/esp32s3/firmware.bin"):
+            s3_fw = "firmware/.pio/build/esp32s3/firmware.bin"
+        elif os.path.exists("docs/firmware/firmware-s3.bin"):
+            s3_fw = "docs/firmware/firmware-s3.bin"
+
+    s3_log = "pio_build_esp32s3.log"
+    s3_flash, s3_ram, s3_free_flash, s3_free_pct = parse_utilization(s3_log, s3_fw)
+
+    # ESP32-C5
+    c5_fw = f"release_assets/firmware-esp32c5-{tag}.bin"
+    if not os.path.exists(c5_fw):
+        if os.path.exists("firmware/.pio/build/esp32c5/firmware.bin"):
+            c5_fw = "firmware/.pio/build/esp32c5/firmware.bin"
+        elif os.path.exists("docs/firmware/firmware-c5.bin"):
+            c5_fw = "docs/firmware/firmware-c5.bin"
+
+    c5_log = "pio_build_esp32c5.log"
+    c5_flash, c5_ram, c5_free_flash, c5_free_pct = parse_utilization(c5_log, c5_fw)
+
     changelog_section = ""
     if os.path.exists("CHANGELOG.md"):
         clean_ver = tag.lstrip("v")
         with open("CHANGELOG.md", "r") as f:
             content = f.read()
-            m = re.search(r"(## \[" + re.escape(clean_ver) + r"\].*?)(?=\n## \[|\Z)", content, re.DOTALL)
+            m = re.search(r"## \[" + re.escape(clean_ver) + r"\][^\n]*\n\n(.*?)(?=\n## \[|\Z)", content, re.DOTALL)
             if m:
                 changelog_section = m.group(1).strip()
 
@@ -74,6 +96,18 @@ def main():
 | **Flash (App Slot)** | **{c3_flash}** | 1,966,080 bytes (1.9 MB OTA) | {c3_free_flash:,} bytes ({c3_free_pct:.1f}%) |
 | **DRAM (RAM)** | **{c3_ram}** | 327,680 bytes (320 KB) | Dynamic Heap |
 
+#### ESP32-S3 (Xtensa Dual-Core, BLE, Native USB CDC)
+| Metric | Utilization | Total Allocated | Free Space |
+| :--- | :--- | :--- | :--- |
+| **Flash (App Slot)** | **{s3_flash}** | 1,966,080 bytes (1.9 MB OTA) | {s3_free_flash:,} bytes ({s3_free_pct:.1f}%) |
+| **DRAM (RAM)** | **{s3_ram}** | 327,680 bytes (320 KB) | Dynamic Heap |
+
+#### ESP32-C5 (RISC-V Single-Core, Wi-Fi 6 / 2.4 & 5 GHz Bands)
+| Metric | Utilization | Total Allocated | Free Space |
+| :--- | :--- | :--- | :--- |
+| **Flash (App Slot)** | **{c5_flash}** | 1,966,080 bytes (1.9 MB OTA) | {c5_free_flash:,} bytes ({c5_free_pct:.1f}%) |
+| **DRAM (RAM)** | **{c5_ram}** | 327,680 bytes (320 KB) | Dynamic Heap |
+
 ---
 
 ### 📖 Release Documentation & Highlights
@@ -92,9 +126,19 @@ def main():
     ```bash
     esptool.py --chip esp32c3 --baud 921600 write_flash 0x0 firmware-esp32c3-merged-{tag}.bin
     ```
+  - **ESP32-S3**:
+    ```bash
+    esptool.py --chip esp32s3 --baud 921600 write_flash 0x0 firmware-esp32s3-merged-{tag}.bin
+    ```
+  - **ESP32-C5**:
+    ```bash
+    esptool.py --chip esp32c5 --baud 921600 write_flash 0x0 firmware-esp32c5-merged-{tag}.bin
+    ```
 - **Firmware Binaries**:
   - Standard ESP32 App (OTA): `firmware-esp32-{tag}.bin` | Merged Image: `firmware-esp32-merged-{tag}.bin`
   - ESP32-C3 App (OTA): `firmware-esp32c3-{tag}.bin` | Merged Image: `firmware-esp32c3-merged-{tag}.bin`
+  - ESP32-S3 App (OTA): `firmware-esp32s3-{tag}.bin` | Merged Image: `firmware-esp32s3-merged-{tag}.bin`
+  - ESP32-C5 App (OTA): `firmware-esp32c5-{tag}.bin` | Merged Image: `firmware-esp32c5-merged-{tag}.bin`
 """
     with open("release_body.md", "w") as f:
         f.write(body)

@@ -1626,6 +1626,24 @@ export function renderDashboardHtml(): string {
                   </div>
                 </div>
               </label>
+              <label id="targetS3Label" style="flex:1;min-width:250px;padding:0.75rem 1rem;border:1px solid var(--border);border-radius:0.5rem;background:transparent;cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;">
+                <input type="radio" name="flashTargetRadio" value="s3" onchange="window.setFlashTarget('s3')" style="margin-top:0.25rem;">
+                <div>
+                  <div style="font-weight:600;font-size:0.9rem;color:var(--text);">ESP32-S3 (Xtensa Dual-Core)</div>
+                  <div style="font-size:0.775rem;color:var(--text-muted);margin-top:0.25rem;line-height:1.4;">
+                    For <strong>ESP32-S3 DevKit</strong>, LILYGO T-Display S3, and high-performance S3 nodes. Native USB CDC, BLE (Classic BT omitted).
+                  </div>
+                </div>
+              </label>
+              <label id="targetC5Label" style="flex:1;min-width:250px;padding:0.75rem 1rem;border:1px solid var(--border);border-radius:0.5rem;background:transparent;cursor:pointer;display:flex;align-items:flex-start;gap:0.75rem;">
+                <input type="radio" name="flashTargetRadio" value="c5" onchange="window.setFlashTarget('c5')" style="margin-top:0.25rem;">
+                <div>
+                  <div style="font-weight:600;font-size:0.9rem;color:var(--text);">ESP32-C5 (Wi-Fi 6 / 2.4 &amp; 5 GHz RISC-V)</div>
+                  <div style="font-size:0.775rem;color:var(--text-muted);margin-top:0.25rem;line-height:1.4;">
+                    For <strong>ESP32-C5</strong> dual-band nodes. 2.4 GHz + 5 GHz spectrum analyzer, 802.11ax Wi-Fi 6, RISC-V single-core.
+                  </div>
+                </div>
+              </label>
             </div>
           </div>
 
@@ -1787,6 +1805,72 @@ export function renderDashboardHtml(): string {
             <a id="dlC3MergedBin" href="firmware/firmware-esp32c3-merged.bin" download="firmware-esp32c3-merged.bin" class="primary-btn" style="padding:0.4rem 0.85rem;font-size:0.85rem;text-decoration:none;">⬇️ firmware-esp32c3-merged.bin</a>
           </div>
 
+          <div style="font-weight:600;font-size:0.9rem;margin-top:1rem;color:var(--text);">Target Architecture: ESP32-S3 (Xtensa Dual-Core)</div>
+          <div class="bin-download-grid">
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">S3 Application Firmware</span>
+                <span class="bin-meta">Offset: 0x10000 (app0)</span>
+              </div>
+              <a id="dlS3FirmwareBin" href="firmware/firmware-s3.bin" download="firmware-s3.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ firmware-s3.bin</a>
+            </div>
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">S3 Partition Table</span>
+                <span class="bin-meta">Offset: 0x8000 (partitions)</span>
+              </div>
+              <a id="dlS3PartitionsBin" href="firmware/partitions-s3.bin" download="partitions-s3.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ partitions-s3.bin</a>
+            </div>
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">S3 Bootloader</span>
+                <span class="bin-meta">Offset: 0x0 (bootloader)</span>
+              </div>
+              <a id="dlS3BootloaderBin" href="firmware/bootloader-s3.bin" download="bootloader-s3.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ bootloader-s3.bin</a>
+            </div>
+          </div>
+
+          <div class="bin-card" style="border-color:var(--primary);background:var(--primary-dim);">
+            <div class="bin-info">
+              <span class="bin-name" style="color:var(--primary);">Unified Merged Binary (ESP32-S3 Full Flash)</span>
+              <span class="bin-meta">Offset: 0x0 (Single-file flash)</span>
+            </div>
+            <a id="dlS3MergedBin" href="firmware/firmware-esp32s3-merged.bin" download="firmware-esp32s3-merged.bin" class="primary-btn" style="padding:0.4rem 0.85rem;font-size:0.85rem;text-decoration:none;">⬇️ firmware-esp32s3-merged.bin</a>
+          </div>
+
+          <div style="font-weight:600;font-size:0.9rem;margin-top:1rem;color:var(--text);">Target Architecture: ESP32-C5 (Wi-Fi 6 / Dual-Band 2.4 &amp; 5 GHz)</div>
+          <div class="bin-download-grid">
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">C5 Application Firmware</span>
+                <span class="bin-meta">Offset: 0x10000 (app0)</span>
+              </div>
+              <a id="dlC5FirmwareBin" href="firmware/firmware-c5.bin" download="firmware-c5.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ firmware-c5.bin</a>
+            </div>
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">C5 Partition Table</span>
+                <span class="bin-meta">Offset: 0x8000 (partitions)</span>
+              </div>
+              <a id="dlC5PartitionsBin" href="firmware/partitions-c5.bin" download="partitions-c5.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ partitions-c5.bin</a>
+            </div>
+            <div class="bin-card">
+              <div class="bin-info">
+                <span class="bin-name">C5 Bootloader</span>
+                <span class="bin-meta">Offset: 0x0 (bootloader)</span>
+              </div>
+              <a id="dlC5BootloaderBin" href="firmware/bootloader-c5.bin" download="bootloader-c5.bin" class="nav-link" style="padding:0.35rem 0.65rem;font-size:0.8rem;">⬇️ bootloader-c5.bin</a>
+            </div>
+          </div>
+
+          <div class="bin-card" style="border-color:var(--primary);background:var(--primary-dim);">
+            <div class="bin-info">
+              <span class="bin-name" style="color:var(--primary);">Unified Merged Binary (ESP32-C5 Full Flash)</span>
+              <span class="bin-meta">Offset: 0x0 (Single-file flash)</span>
+            </div>
+            <a id="dlC5MergedBin" href="firmware/firmware-esp32c5-merged.bin" download="firmware-esp32c5-merged.bin" class="primary-btn" style="padding:0.4rem 0.85rem;font-size:0.85rem;text-decoration:none;">⬇️ firmware-esp32c5-merged.bin</a>
+          </div>
+
           <div style="display:flex;flex-direction:column;gap:0.4rem;margin-top:0.75rem;">
             <div style="display:flex;justify-content:space-between;align-items:center;">
               <span style="font-size:0.85rem;font-weight:600;">Flash ESP32 with esptool.py (Merged):</span>
@@ -1804,6 +1888,26 @@ export function renderDashboardHtml(): string {
             <div class="code-block">
               <code>esptool.py --chip esp32c3 --baud 921600 write_flash 0x0 firmware-esp32c3-merged.bin</code>
               <button class="copy-code-btn" onclick="copySnippet('esptool.py --chip esp32c3 --baud 921600 write_flash 0x0 firmware-esp32c3-merged.bin', this)">Copy</button>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:0.4rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.85rem;font-weight:600;">Flash ESP32-S3 with esptool.py (Merged):</span>
+            </div>
+            <div class="code-block">
+              <code>esptool.py --chip esp32s3 --baud 921600 write_flash 0x0 firmware-esp32s3-merged.bin</code>
+              <button class="copy-code-btn" onclick="copySnippet('esptool.py --chip esp32s3 --baud 921600 write_flash 0x0 firmware-esp32s3-merged.bin', this)">Copy</button>
+            </div>
+          </div>
+
+          <div style="display:flex;flex-direction:column;gap:0.4rem;">
+            <div style="display:flex;justify-content:space-between;align-items:center;">
+              <span style="font-size:0.85rem;font-weight:600;">Flash ESP32-C5 with esptool.py (Merged):</span>
+            </div>
+            <div class="code-block">
+              <code>esptool.py --chip esp32c5 --baud 921600 write_flash 0x0 firmware-esp32c5-merged.bin</code>
+              <button class="copy-code-btn" onclick="copySnippet('esptool.py --chip esp32c5 --baud 921600 write_flash 0x0 firmware-esp32c5-merged.bin', this)">Copy</button>
             </div>
           </div>
         </div>
@@ -2381,34 +2485,32 @@ export function renderDashboardHtml(): string {
       const activateBtn = document.getElementById("espActivateBtn");
       const lblTargetEsp32 = document.getElementById("targetEsp32Label");
       const lblTargetC3 = document.getElementById("targetC3Label");
+      const lblTargetS3 = document.getElementById("targetS3Label");
+      const lblTargetC5 = document.getElementById("targetC5Label");
       const lblModeUpdate = document.getElementById("modeUpdateLabel");
       const lblModeClean = document.getElementById("modeCleanLabel");
       const summaryTarget = document.getElementById("summaryTargetName");
       const summaryMode = document.getElementById("summaryModeName");
       const summaryManifest = document.getElementById("summaryManifestName");
 
-      const isC3 = (currentFlashTarget === "c3");
       const isClean = (currentFlashMode === "clean");
 
-      // Update styling for Step 1 (Target Architecture)
-      if (isC3) {
-        if (lblTargetC3) {
-          lblTargetC3.style.border = "2px solid var(--accent)";
-          lblTargetC3.style.background = "rgba(56,189,248,0.08)";
+      // Reset all target labels styling
+      [lblTargetEsp32, lblTargetC3, lblTargetS3, lblTargetC5].forEach(function(lbl) {
+        if (lbl) {
+          lbl.style.border = "1px solid var(--border)";
+          lbl.style.background = "transparent";
         }
-        if (lblTargetEsp32) {
-          lblTargetEsp32.style.border = "1px solid var(--border)";
-          lblTargetEsp32.style.background = "transparent";
-        }
-      } else {
-        if (lblTargetEsp32) {
-          lblTargetEsp32.style.border = "2px solid var(--accent)";
-          lblTargetEsp32.style.background = "rgba(56,189,248,0.08)";
-        }
-        if (lblTargetC3) {
-          lblTargetC3.style.border = "1px solid var(--border)";
-          lblTargetC3.style.background = "transparent";
-        }
+      });
+
+      // Highlight active target label
+      let activeTargetLbl = lblTargetEsp32;
+      if (currentFlashTarget === "c3") activeTargetLbl = lblTargetC3;
+      else if (currentFlashTarget === "s3") activeTargetLbl = lblTargetS3;
+      else if (currentFlashTarget === "c5") activeTargetLbl = lblTargetC5;
+      if (activeTargetLbl) {
+        activeTargetLbl.style.border = "2px solid var(--accent)";
+        activeTargetLbl.style.background = "rgba(56,189,248,0.08)";
       }
 
       // Update styling for Step 2 (Flashing Mode)
@@ -2434,8 +2536,10 @@ export function renderDashboardHtml(): string {
 
       let manifestFile = "";
       let buttonHtml = "";
+      let targetName = "Standard ESP32 (Xtensa)";
 
-      if (isC3) {
+      if (currentFlashTarget === "c3") {
+        targetName = "ESP32-C3 Super Mini (RISC-V)";
         if (isClean) {
           manifestFile = "manifest-c3.json";
           buttonHtml = "🧹 Connect ESP32-C3 &amp; Clean Install";
@@ -2443,7 +2547,26 @@ export function renderDashboardHtml(): string {
           manifestFile = "manifest-c3-update.json";
           buttonHtml = "⚡ Connect ESP32-C3 &amp; Update Firmware (Keep Settings)";
         }
+      } else if (currentFlashTarget === "s3") {
+        targetName = "ESP32-S3 (Xtensa Dual-Core)";
+        if (isClean) {
+          manifestFile = "manifest-s3.json";
+          buttonHtml = "🧹 Connect ESP32-S3 &amp; Clean Install";
+        } else {
+          manifestFile = "manifest-s3-update.json";
+          buttonHtml = "⚡ Connect ESP32-S3 &amp; Update Firmware (Keep Settings)";
+        }
+      } else if (currentFlashTarget === "c5") {
+        targetName = "ESP32-C5 (Wi-Fi 6 / 2.4 &amp; 5 GHz)";
+        if (isClean) {
+          manifestFile = "manifest-c5.json";
+          buttonHtml = "🧹 Connect ESP32-C5 &amp; Clean Install";
+        } else {
+          manifestFile = "manifest-c5-update.json";
+          buttonHtml = "⚡ Connect ESP32-C5 &amp; Update Firmware (Keep Settings)";
+        }
       } else {
+        targetName = "Standard ESP32 (Xtensa)";
         if (isClean) {
           manifestFile = "manifest-esp32.json";
           buttonHtml = "🧹 Connect ESP32 &amp; Clean Install";
@@ -2453,7 +2576,7 @@ export function renderDashboardHtml(): string {
         }
       }
 
-      if (summaryTarget) summaryTarget.innerText = isC3 ? "ESP32-C3 Super Mini (RISC-V)" : "Standard ESP32 (Xtensa)";
+      if (summaryTarget) summaryTarget.innerText = targetName;
       if (summaryMode) summaryMode.innerText = isClean ? "Clean Install (Full Flash)" : "Update Firmware (Keep Settings)";
       if (summaryManifest) summaryManifest.innerText = manifestFile;
 
@@ -2479,7 +2602,15 @@ export function renderDashboardHtml(): string {
         { id: "dlC3FirmwareBin", file: "firmware-c3.bin" },
         { id: "dlC3PartitionsBin", file: "partitions-c3.bin" },
         { id: "dlC3BootloaderBin", file: "bootloader-c3.bin" },
-        { id: "dlC3MergedBin", file: "firmware-esp32c3-merged.bin" }
+        { id: "dlC3MergedBin", file: "firmware-esp32c3-merged.bin" },
+        { id: "dlS3FirmwareBin", file: "firmware-s3.bin" },
+        { id: "dlS3PartitionsBin", file: "partitions-s3.bin" },
+        { id: "dlS3BootloaderBin", file: "bootloader-s3.bin" },
+        { id: "dlS3MergedBin", file: "firmware-esp32s3-merged.bin" },
+        { id: "dlC5FirmwareBin", file: "firmware-c5.bin" },
+        { id: "dlC5PartitionsBin", file: "partitions-c5.bin" },
+        { id: "dlC5BootloaderBin", file: "bootloader-c5.bin" },
+        { id: "dlC5MergedBin", file: "firmware-esp32c5-merged.bin" }
       ];
       links.forEach(function(l) {
         const el = document.getElementById(l.id);

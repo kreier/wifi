@@ -154,6 +154,118 @@ export default {
         });
       }
 
+      if (path === "/manifest-s3-update.json" || path === "/firmware/manifest-s3-update.json") {
+        const manifest = {
+          name: "Wi-Fi Monitor - ESP32-S3 (Update)",
+          version: env.STABLE_VERSION || "1.1.8",
+          funding_url: "https://github.com/kreier/wifi",
+          new_install_skip_erase: true,
+          builds: [
+            {
+              chipFamily: "ESP32-S3",
+              parts: [
+                { path: "firmware/bootloader-s3.bin", offset: 0 },
+                { path: "firmware/partitions-s3.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-s3.bin", offset: 65536 }
+              ]
+            }
+          ]
+        };
+        return new Response(JSON.stringify(manifest, null, 2), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+
+      if (path === "/manifest-s3.json" || path === "/firmware/manifest-s3.json") {
+        const manifest = {
+          name: "Wi-Fi Monitor - ESP32-S3",
+          version: env.STABLE_VERSION || "1.1.8",
+          funding_url: "https://github.com/kreier/wifi",
+          new_install_prompt_erase: true,
+          builds: [
+            {
+              chipFamily: "ESP32-S3",
+              parts: [
+                { path: "firmware/bootloader-s3.bin", offset: 0 },
+                { path: "firmware/partitions-s3.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-s3.bin", offset: 65536 }
+              ]
+            }
+          ]
+        };
+        return new Response(JSON.stringify(manifest, null, 2), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+
+      if (path === "/manifest-c5-update.json" || path === "/firmware/manifest-c5-update.json") {
+        const manifest = {
+          name: "Wi-Fi Monitor - ESP32-C5 (Update)",
+          version: env.STABLE_VERSION || "1.1.8",
+          funding_url: "https://github.com/kreier/wifi",
+          new_install_skip_erase: true,
+          builds: [
+            {
+              chipFamily: "ESP32-C5",
+              parts: [
+                { path: "firmware/bootloader-c5.bin", offset: 0 },
+                { path: "firmware/partitions-c5.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-c5.bin", offset: 65536 }
+              ]
+            }
+          ]
+        };
+        return new Response(JSON.stringify(manifest, null, 2), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+
+      if (path === "/manifest-c5.json" || path === "/firmware/manifest-c5.json") {
+        const manifest = {
+          name: "Wi-Fi Monitor - ESP32-C5 (Wi-Fi 6 / 5 GHz)",
+          version: env.STABLE_VERSION || "1.1.8",
+          funding_url: "https://github.com/kreier/wifi",
+          new_install_prompt_erase: true,
+          builds: [
+            {
+              chipFamily: "ESP32-C5",
+              parts: [
+                { path: "firmware/bootloader-c5.bin", offset: 0 },
+                { path: "firmware/partitions-c5.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-c5.bin", offset: 65536 }
+              ]
+            }
+          ]
+        };
+        return new Response(JSON.stringify(manifest, null, 2), {
+          status: 200,
+          headers: {
+            "Content-Type": "application/json; charset=utf-8",
+            "Access-Control-Allow-Origin": "*",
+            "Cache-Control": "public, max-age=3600"
+          }
+        });
+      }
+
       if (path === "/manifest-update.json" || path === "/firmware/manifest-update.json") {
         const manifest = {
           name: "Wi-Fi Monitor (Update)",
@@ -177,6 +289,24 @@ export default {
                 { path: "firmware/partitions-c3.bin", offset: 32768 },
                 { path: "firmware/boot_app0.bin", offset: 57344 },
                 { path: "firmware/firmware-c3.bin", offset: 65536 }
+              ]
+            },
+            {
+              chipFamily: "ESP32-S3",
+              parts: [
+                { path: "firmware/bootloader-s3.bin", offset: 0 },
+                { path: "firmware/partitions-s3.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-s3.bin", offset: 65536 }
+              ]
+            },
+            {
+              chipFamily: "ESP32-C5",
+              parts: [
+                { path: "firmware/bootloader-c5.bin", offset: 0 },
+                { path: "firmware/partitions-c5.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-c5.bin", offset: 65536 }
               ]
             }
           ]
@@ -214,6 +344,24 @@ export default {
                 { path: "firmware/partitions-c3.bin", offset: 32768 },
                 { path: "firmware/boot_app0.bin", offset: 57344 },
                 { path: "firmware/firmware-c3.bin", offset: 65536 }
+              ]
+            },
+            {
+              chipFamily: "ESP32-S3",
+              parts: [
+                { path: "firmware/bootloader-s3.bin", offset: 0 },
+                { path: "firmware/partitions-s3.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-s3.bin", offset: 65536 }
+              ]
+            },
+            {
+              chipFamily: "ESP32-C5",
+              parts: [
+                { path: "firmware/bootloader-c5.bin", offset: 0 },
+                { path: "firmware/partitions-c5.bin", offset: 32768 },
+                { path: "firmware/boot_app0.bin", offset: 57344 },
+                { path: "firmware/firmware-c5.bin", offset: 65536 }
               ]
             }
           ]

@@ -5,9 +5,9 @@ All notable changes to the `kreier/wifi` platform will be documented in this fil
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-> **Version Note:** The platform maintains synchronized semantic versioning:
-> - **Firmware:** ESP32 embedded application (`v1.0.x`)
-> - **Web & Worker:** Cloudflare Worker backend and web dashboards (`v2.0.x`)
+> **Version Note:** The platform maintains synchronized semantic versioning across all components:
+> - **Firmware:** Embedded application (`v1.1.x`) for ESP32, ESP32-C3, ESP32-S3, and ESP32-C5
+> - **Web & Worker:** Cloudflare Worker edge backend and Web Dashboard (`v1.1.x`)
 
 ---
 
@@ -17,98 +17,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [1.1.8] - 2026-11-20
 
-### Added & Enhanced
+### Added & Enhanced (Multi-Architecture Firmware & Hardware Support)
+- **Multi-Architecture Build Matrix (ESP32, ESP32-C3, ESP32-S3, ESP32-C5)**:
+  - Added distinctive, optimized builds across 4 microcontroller architectures:
+    1. **Standard ESP32** (`[env:esp32dev]`): Xtensa dual-core (LILYGO T18, T8, DevKit V1, custom boards) with dual 2.4 GHz Classic Bluetooth (BR/EDR) and BLE.
+    2. **ESP32-C3 Super Mini** (`[env:esp32c3]`): RISC-V single-core, active-low GPIO 8 status LED, native USB CDC, lightweight build without Classic BT (`lib_ignore = BluetoothSerial`).
+    3. **ESP32-S3** (`[env:esp32s3]`): Xtensa dual-core, native USB CDC, BLE (Classic BT omitted).
+    4. **ESP32-C5** (`[env:esp32c5]`): RISC-V single-core, **Wi-Fi 6 (802.11ax)** with **Dual-Band 2.4 GHz and 5 GHz spectrum support**, and BLE (Classic BT omitted).
+  - Classic Bluetooth (`BluetoothSerial.h`) is physically absent from ESP32-C3, ESP32-S3, and ESP32-C5 silicon; conditional compilation guards (`HAS_CLASSIC_BT`) eliminate unused code, saving >400 KB flash space and reducing RAM footprint across all three modern chips.
+  - Adapted deep sleep and light sleep wakeups for RISC-V targets using `gpio_wakeup_enable` and `esp_sleep_enable_gpio_wakeup()`.
+  - Added hardware presets for ESP32-C3, ESP32-S3, and ESP32-C5 to the captive portal Soft-AP configuration interface (`captive_portal.h`).
+
+### Added & Enhanced (Power Efficiency & Offline Storage)
 - **Automatic Energy-Preserving Switch on Power Bank Keep-Alive**:
-  - When `powerbank_keepalive` is enabled (even on boards without battery voltage sensing like the ESP32-C3 SuperMini where Vbat appears permanently powered), the firmware now automatically switches from aggressive 2-minute AC mains cadence to battery-optimized 10-minute cadence.
-  - Promiscuous 13-channel congestion survey and network latency probing are automatically throttled to the 30-minute boundary (`is30mBoundary`), reducing radio active duty cycle from 27.7% to only ~3%.
-  - Optimizes 13-channel survey dwell time: reduced from 2000 ms to 800 ms per channel in battery/power bank modes, saving 15.6 seconds of active radio time per 30 minutes ($10.4\text{ s}$ total vs $26.0\text{ s}$).
-  - Maximizes light sleep dwelling between cycles, boosting ESP32-C3 power bank runtime from ~7.1 days to **62.7+ days** on a 10,000 mAh 5V power bank!
-- **20-Second Keep-Alive Pulse Optimization**:
-  - Extended the power bank keep-alive wake pulse interval from 15 seconds to **20 seconds** (`INTERVAL_SLEEP_MS = 20000`).
-  - Reduces keep-alive wakeups by 25% (from 240 to 180 pulses/hour), lowering quiescent sleep draw from $1.85\text{ mA} \to \mathbf{1.664\text{ mA}}$ on ESP32-C3.
-- **18-Day Offline 30-Minute Average Ring Buffer Storage**:
-  - Offline spooling policy updated: intermediate cycles accumulate solely in RAM. Only once every 30 minutes at the boundary is a consolidated slot persisted to flash ring buffer (`spool_manager.h` and `channel_history.h`).
-  - Streamlined binary serialization: 30-minute offline records omit verbose AP scan lists and retain essential 30-minute metrics (13-channel airtimes, unique transmitters, monitored network reliability, BLE unique devices, and battery mV), shrinking records to ~110-120 bytes.
-  - 176 KB circular flash buffer now holds **1,500+ records**, guaranteeing **over 31 days** (well exceeding the 18 days / 864 slots requirement) of offline telemetry during complete network blackout.
-  - Drastically cuts flash write wear to at most 48 writes per day (giving the NOR flash over 5,700 years of life).
+  - When `powerbank_keepalive` is enabled (even on boards without battery voltage sensing like the ESP32-C3 Super Mini where Vbat appears permanently powered), the firmware automatically switches from 2-minute cadence to battery-optimized 10-minute cadence.
+  - Promiscuous channel congestion surveys and network latency probing are automatically throttled to the 30-minute boundary (`is30mBoundary`), reducing radio active duty cycle from 27.7% to only ~3%.
+  - Optimized dwell time per channel: reduced from 2000 ms to 800 ms per channel in battery/power bank modes, saving 15.6 seconds of active radio time per 30 minutes.
+  - Extended keep-alive wake pulse interval to 20 seconds with a 120 ms high-current burst, boosting ESP32-C3 power bank runtime to **62.7+ days** on a 10,000 mAh power bank.
+- **18-Day Zero-Wear Offline 30-Minute Ring Buffer**:
+  - Intermediate cycles accumulate solely in RAM; only once every 30 minutes at the boundary is a consolidated slot persisted to flash ring buffer (`spool_manager.h` and `channel_history.h`).
+  - Streamlined binary serialization: 30-minute offline records retain essential 30-minute metrics (airtimes, unique transmitters, monitored network reliability, BLE unique devices, and battery mV), shrinking records to ~110-120 bytes.
+  - 176 KB circular flash buffer holds **1,500+ records**, guaranteeing **over 31 days** (well exceeding the 18 days requirement) of offline telemetry during network blackouts while limiting flash wear to at most 48 writes/day.
+  - Transactional batch confirmation: `SpoolManager::confirmBatchUploaded()` advances `read_offset` only after HTTP 200 ingestion confirmation, retrying safely across network dropouts.
 - **Comprehensive Power Model Documentation**:
-  - Added `docs/power-consumption.md` detailing exact mathematical modeling, measured light sleep benchmarks (1.0 mA on C3, 2.5 mA on T18 LiPo, 17.0 mA on DevKit V1), duty cycle derivations, and hardware runtime projections across 2000 mAh LiPo and 10,000 mAh power bank configurations.
+  - Added `docs/power-consumption.md` detailing mathematical modeling, measured light sleep benchmarks, and hardware runtime projections.
 
----
-
-## [1.1.7] - 2026-11-20
-
-### Added & Enhanced
-- **Iterative Chunked Backlog Upload & Flash Drain Protection**:
-  - Replaced the single-batch 12-record spool upload in `app_main.h` with an iterative drain loop (`while (SpoolManager::hasPendingData())`) uploading in chunks of 12.
-  - Implemented transactional batch confirmation: `SpoolManager::confirmBatchUploaded()` advances `read_offset` only after the Cloudflare Worker backend confirms successful HTTP 200 ingestion.
-  - If network or server encounters an error mid-upload, unconfirmed records remain stored in flash and resume on subsequent wakeups.
-  - Automatic circular pointer reset to base address when all backlogged records are completely drained, preventing flash memory fragmentation and unnecessary write cycles.
-- **Streamlined 192 KB Circular Flash Ring Buffer**:
-  - Overhauled offline binary serialization in `spool_manager.h` (v2 header format): each record efficiently stores channel airtime congestion across 13 channels, monitored station connection & probe reliability (assoc, DHCP, gateway RTT, DNS, HTTP probes), BLE unique device counts, and newly detected APs with RF characteristics.
-  - Sizing & Retention: Allocates 176 KB (180,224 bytes) dedicated to the raw circular spool buffer, fitting ~880–900 complete telemetry records.
-  - Provides **~6.1 days (146+ hours)** of continuous offline storage on standard 10-minute battery intervals, or **~18.3 days (440+ hours)** on 30-minute intervals.
-  - Dedicated rolling 24-hour `ChannelHistory` (48 slots) stored in independent 12 KB flash sectors 1..3 with slot-distance UTC timestamp calibration immune to light-sleep timer drift.
-- **BLE Unique Devices in Channel History & Real-Time Aggregation**:
-  - Guaranteed `ble_unique_devices` is captured, recorded into `ChannelHistoryManager`, and transmitted within the `bluetooth` telemetry payload for all 30-minute intervals.
-  - Added real-time rollup processing (`upsertDaily30MinSummary()`) in backend `telemetry.ts` and `db.ts` so historical and live cycles immediately populate `daily_30min_summaries`.
-- **Peak RSSI & Quality Tracking in Historical Discovered APs**:
-  - Updated D1 database upsert logic to compute `MAX(rssi)` and `MAX(quality)` across scans, preserving the highest observed signal strength and signal quality for every network across all time.
-  - Preserved discovered network SSID on upsert via `COALESCE(excluded.ssid, station_discovered_aps.ssid)`.
-- **Dual-View Discovered Networks Drawer**:
-  - Added interactive view toggle in the Previously Detected Networks drawer:
-    - **Last 24h Missing**: Filtered table showing APs seen in the past 24 hours but absent from the latest cycle.
-    - **All Discovered APs (Archive)**: Complete catalog of all Wi-Fi networks ever discovered by the node, with maximum recorded signal strength, channel, and encryption.
-
----
-
-## [1.1.6] - 2026-11-20
-
-### Added & Enhanced
+### Added & Enhanced (Web Dashboard & Worker Backend)
+- **Randomized BLE MACs Periodic Drop Fix**:
+  - `ble_random_macs` is now tracked, stored, and serialized across 30-minute intervals in `channel_history.h`, resolving cyclical zero-dips in time-series charts.
+  - Client-side interpolation in `frontend.ts` and database `ON CONFLICT` preservation for legacy records.
 - **Dynamic BLE Heatmap Color Scaling**:
-  - Implemented dynamic scale calibration for Bluetooth device heatmaps (both 24-hour spectrum and 7-day historical matrices):
-    - Replaced the legacy hard-coded `> 25 devices` saturation ceiling with runtime peak-detection (`dynamicBleMax = Math.max(10, Math.ceil(maxBle / 5) * 5)`).
-    - Dynamically generates threshold boundaries across the active color scheme palette (Spectrum, Inferno, Viridis, Plasma), preserving high-contrast visual distribution even in quiet environments (e.g. max 8 devices) or ultra-dense RF areas (e.g. 50+ devices).
-    - Dynamic legend updates: real-time legend text displaying dynamic peak scale and color swatches matching active palette boundaries.
+  - Replaced the hard-coded `> 25 devices` saturation ceiling with runtime peak-detection (`dynamicBleMax = Math.max(10, Math.ceil(maxBle / 5) * 5)`).
+  - Dynamically computes thresholds across color palettes (Spectrum, Inferno, Viridis, Plasma), providing high-contrast visual distribution for both quiet and dense RF areas.
 - **Outlier Detection & Telemetry Cleanup Engine**:
-  - Added backend SQL anomaly scanning engine (`db.scanOutliers()`) targeting 5 critical operational domains:
-    1. Impossible Bluetooth device presence (e.g. `ble_unique_devices > 200` or `ble_random_macs > 500`).
-    2. Out-of-bounds 30-minute aggregation anomalies (`ble_max_unique > 200`).
-    3. Wi-Fi channel utilization corruption (`airtime_pct > 100%` or `< 0%`, or excessive transmitters).
-    4. Unrealistic network probe latency anomalies (probe timeouts exceeding threshold or negative anomalies).
-    5. Invalid battery ADC readings outside valid 2.0V–5.0V LiPo bounds.
-  - Added dedicated **🛡️ Outliers** tab to Settings & Fleet Management modal:
-    - One-click fleet-wide or per-station scanning with severity classification (critical vs warning).
-    - Multi-select checkbox deletion and atomic batch purge (`/api/admin/outliers/delete`).
-    - Automatic overview cache invalidation upon record cleanup.
-
----
-
-## [1.1.5] - 2026-11-20
-
-### Added & Enhanced
-- **ESP32-C3 Super Mini Target & Multi-Architecture Build Pipeline**:
-  - Added `BOARD_C3_SUPERMINI` hardware profile with status LED on GPIO 8 (active-low inverted via `LedController::setActiveLow(true)`), BOOT interrupt on GPIO 9, and battery sensing disabled.
-  - Tailored lightweight firmware build for RISC-V architecture without Classic Bluetooth (`BluetoothSerial.h`), saving >400 KB flash space and reducing DRAM footprint by 31% (16.7% vs 24.3%).
-  - Adapted deep sleep and light sleep wakeups for RISC-V core using `gpio_wakeup_enable` and `esp_sleep_enable_gpio_wakeup()` (replacing unsupported Xtensa `esp_sleep_enable_ext0_wakeup`).
-  - Added ESP32-C3 preset option to Captive Portal configuration dropdown (`captive_portal.h`).
-  - Added `[env:esp32c3]` PlatformIO target using `esp32-c3-devkitm-1` and `TARGET_C3_SUPERMINI=1` flag.
-  - Updated Web Serial Flasher manifests (`manifest.json` and `manifest-update.json`) to define dual-build entries for both `ESP32` and `ESP32-C3`, enabling automatic chip interrogation and one-click in-browser flashing.
+  - Added backend SQL anomaly scanning engine (`db.scanOutliers()`) and dedicated **🛡️ Outliers** tab in Settings & Fleet Management.
+  - One-click fleet-wide or per-station scanning with multi-select checkbox deletion and atomic batch purge (`/api/admin/outliers/delete`).
+- **Web Serial Flasher & Architecture Selector**:
+  - Added interactive hardware target selector to the Web Flasher modal supporting Standard ESP32, ESP32-C3, ESP32-S3, and ESP32-C5.
+  - Added dedicated manifests (`manifest-esp32.json`, `manifest-c3.json`, `manifest-s3.json`, `manifest-c5.json` and `-update` variants) for one-click in-browser flashing.
 - **Dedicated Station Configuration Modal & Canary Gating**:
-  - Replaced browser `prompt()` / `confirm()` dialogs in Fleet Settings with a responsive `#editStationModal` dialog.
-  - Added "⚙️ Configure" shortcut button directly to the Station view header banner.
-  - Added semantic version comparison (`isFirmwareAtLeast(fw, "1.1.4")`) to disable and grey out the Canary enrollment checkbox on nodes running older firmware with an explicit explanatory notice.
-  - Added direct controls for station description modification and explicit OTA version pinning.
-- **Enhanced Multi-Architecture OTA Routing**:
-  - Updated backend OTA streaming proxy (`worker/src/ota.ts`) to inspect `board` query parameter and stream architecture-specific binaries (`firmware-esp32-v*.bin` vs `firmware-esp32c3-v*.bin`).
-  - Added binary download links and `esptool.py` flashing commands for both standard ESP32 and ESP32-C3 in the Flasher modal.
-
-### Fixed
-- **Unique BLE Device Limit Ceiling & RPA Periodic Drop**:
-  - Removed the arbitrary 25-device ceiling on BLE scanning.
-  - Expanded live scan tracking buffer in `bluetooth_scanner.h` to 120 unique BLE devices and top 30 prominent devices.
-  - Expanded RAM accumulation buffer in `app_main.h` from 25 to 60 devices for long-run multi-cycle collection before upload.
-  - Fixed regular drop in Randomized BLE MACs: `ble_random_macs` was previously missing from 30-minute consolidated records in `channel_history.h`, causing cyclical zero-dips in time-series charts. The field is now tracked, stored, and serialized across 30-minute intervals, with client-side interpolation and DB ON CONFLICT preservation for legacy records.
+  - Added `#editStationModal` dialog with "⚙️ Configure" shortcut button on station header.
+  - Added semantic version comparison to gate Canary enrollment on eligible firmware versions with direct controls for description modification and OTA version pinning.
+- **Architecture-Aware OTA Streaming Proxy**:
+  - Updated `/api/ota` and binary streaming proxy to inspect `board` query parameter and deliver architecture-specific binaries (`esp32`, `esp32c3`, `esp32s3`, `esp32c5`).
 
 ---
 

@@ -42,11 +42,13 @@ jobs:
           echo "tag=${TAG}" >> $GITHUB_OUTPUT
           echo "Building firmware for version tag: ${TAG}"
 
-      - name: Build Unified ESP32 Firmware (ESP32 & ESP32-C3)
+      - name: Build Unified ESP32 Firmware (ESP32, ESP32-C3, ESP32-S3, ESP32-C5)
         run: |
           cd firmware
           pio run -e esp32dev | tee ../pio_build_esp32.log
           pio run -e esp32c3 | tee ../pio_build_esp32c3.log
+          pio run -e esp32s3 | tee ../pio_build_esp32s3.log
+          pio run -e esp32c5 | tee ../pio_build_esp32c5.log
           cd ..
 
       - name: Stage Artifacts & Compute Checksums
@@ -60,6 +62,14 @@ jobs:
           cp firmware/.pio/build/esp32c3/firmware.bin release_assets/firmware-esp32c3-${TAG}.bin
           cp firmware/.pio/build/esp32c3/partitions.bin release_assets/partitions-esp32c3-${TAG}.bin
           cp firmware/.pio/build/esp32c3/bootloader.bin release_assets/bootloader-esp32c3-${TAG}.bin
+
+          cp firmware/.pio/build/esp32s3/firmware.bin release_assets/firmware-esp32s3-${TAG}.bin
+          cp firmware/.pio/build/esp32s3/partitions.bin release_assets/partitions-esp32s3-${TAG}.bin
+          cp firmware/.pio/build/esp32s3/bootloader.bin release_assets/bootloader-esp32s3-${TAG}.bin
+
+          cp firmware/.pio/build/esp32c5/firmware.bin release_assets/firmware-esp32c5-${TAG}.bin
+          cp firmware/.pio/build/esp32c5/partitions.bin release_assets/partitions-esp32c5-${TAG}.bin
+          cp firmware/.pio/build/esp32c5/bootloader.bin release_assets/bootloader-esp32c5-${TAG}.bin
           
           BOOT_APP0=$(find ~/.platformio -name "boot_app0.bin" 2>/dev/null | head -n 1)
           if [ -n "$BOOT_APP0" ] && [ -f "$BOOT_APP0" ]; then
@@ -69,30 +79,27 @@ jobs:
           python3 -c "
           import os
           tag = '${TAG}'
-          # Standard ESP32 merge (bootloader @ 0x1000)
-          fw = open('release_assets/firmware-esp32-' + tag + '.bin', 'rb').read()
-          pt = open('release_assets/partitions-esp32-' + tag + '.bin', 'rb').read()
-          bl = open('release_assets/bootloader-esp32-' + tag + '.bin', 'rb').read()
           ba = open('release_assets/boot_app0.bin', 'rb').read() if os.path.exists('release_assets/boot_app0.bin') else b''
-          buf = bytearray([0xFF] * (0x10000 + len(fw)))
-          buf[0x1000:0x1000+len(bl)] = bl
-          buf[0x8000:0x8000+len(pt)] = pt
-          if ba:
-              buf[0xe000:0xe000+len(ba)] = ba
-          buf[0x10000:0x10000+len(fw)] = fw
-          open('release_assets/firmware-esp32-merged-' + tag + '.bin', 'wb').write(buf)
 
-          # ESP32-C3 merge (bootloader @ 0x0)
-          fw_c3 = open('release_assets/firmware-esp32c3-' + tag + '.bin', 'rb').read()
-          pt_c3 = open('release_assets/partitions-esp32c3-' + tag + '.bin', 'rb').read()
-          bl_c3 = open('release_assets/bootloader-esp32c3-' + tag + '.bin', 'rb').read()
-          buf_c3 = bytearray([0xFF] * (0x10000 + len(fw_c3)))
-          buf_c3[0x0:0x0+len(bl_c3)] = bl_c3
-          buf_c3[0x8000:0x8000+len(pt_c3)] = pt_c3
-          if ba:
-              buf_c3[0xe000:0xe000+len(ba)] = ba
-          buf_c3[0x10000:0x10000+len(fw_c3)] = fw_c3
-          open('release_assets/firmware-esp32c3-merged-' + tag + '.bin', 'wb').write(buf_c3)
+          targets = [
+              ('esp32', 0x1000),
+              ('esp32c3', 0x0),
+              ('esp32s3', 0x0),
+              ('esp32c5', 0x0)
+          ]
+
+          for name, bl_offset in targets:
+              fw = open(f'release_assets/firmware-{name}-{tag}.bin', 'rb').read()
+              pt = open(f'release_assets/partitions-{name}-{tag}.bin', 'rb').read()
+              bl = open(f'release_assets/bootloader-{name}-{tag}.bin', 'rb').read()
+
+              buf = bytearray([0xFF] * (0x10000 + len(fw)))
+              buf[bl_offset:bl_offset+len(bl)] = bl
+              buf[0x8000:0x8000+len(pt)] = pt
+              if ba:
+                  buf[0xe000:0xe000+len(ba)] = ba
+              buf[0x10000:0x10000+len(fw)] = fw
+              open(f'release_assets/firmware-{name}-merged-{tag}.bin', 'wb').write(buf)
           "
 
           python3 scripts/generate-release-notes.py "${TAG}"
@@ -101,12 +108,24 @@ jobs:
           sha256sum firmware-esp32-${TAG}.bin > checksums.txt
           sha256sum partitions-esp32-${TAG}.bin >> checksums.txt
           sha256sum bootloader-esp32-${TAG}.bin >> checksums.txt
+          sha256sum firmware-esp32-merged-${TAG}.bin >> checksums.txt
+
           sha256sum firmware-esp32c3-${TAG}.bin >> checksums.txt
           sha256sum partitions-esp32c3-${TAG}.bin >> checksums.txt
           sha256sum bootloader-esp32c3-${TAG}.bin >> checksums.txt
+          sha256sum firmware-esp32c3-merged-${TAG}.bin >> checksums.txt
+
+          sha256sum firmware-esp32s3-${TAG}.bin >> checksums.txt
+          sha256sum partitions-esp32s3-${TAG}.bin >> checksums.txt
+          sha256sum bootloader-esp32s3-${TAG}.bin >> checksums.txt
+          sha256sum firmware-esp32s3-merged-${TAG}.bin >> checksums.txt
+
+          sha256sum firmware-esp32c5-${TAG}.bin >> checksums.txt
+          sha256sum partitions-esp32c5-${TAG}.bin >> checksums.txt
+          sha256sum bootloader-esp32c5-${TAG}.bin >> checksums.txt
+          sha256sum firmware-esp32c5-merged-${TAG}.bin >> checksums.txt
+
           if [ -f boot_app0.bin ]; then sha256sum boot_app0.bin >> checksums.txt; fi
-          if [ -f firmware-esp32-merged-${TAG}.bin ]; then sha256sum firmware-esp32-merged-${TAG}.bin >> checksums.txt; fi
-          if [ -f firmware-esp32c3-merged-${TAG}.bin ]; then sha256sum firmware-esp32c3-merged-${TAG}.bin >> checksums.txt; fi
           cat checksums.txt
 
       - name: Upload to GitHub Release
@@ -127,6 +146,14 @@ jobs:
             release_assets/partitions-esp32c3-${{ steps.vars.outputs.tag }}.bin
             release_assets/bootloader-esp32c3-${{ steps.vars.outputs.tag }}.bin
             release_assets/firmware-esp32c3-merged-${{ steps.vars.outputs.tag }}.bin
+            release_assets/firmware-esp32s3-${{ steps.vars.outputs.tag }}.bin
+            release_assets/partitions-esp32s3-${{ steps.vars.outputs.tag }}.bin
+            release_assets/bootloader-esp32s3-${{ steps.vars.outputs.tag }}.bin
+            release_assets/firmware-esp32s3-merged-${{ steps.vars.outputs.tag }}.bin
+            release_assets/firmware-esp32c5-${{ steps.vars.outputs.tag }}.bin
+            release_assets/partitions-esp32c5-${{ steps.vars.outputs.tag }}.bin
+            release_assets/bootloader-esp32c5-${{ steps.vars.outputs.tag }}.bin
+            release_assets/firmware-esp32c5-merged-${{ steps.vars.outputs.tag }}.bin
             release_assets/boot_app0.bin
             release_assets/checksums.txt
 

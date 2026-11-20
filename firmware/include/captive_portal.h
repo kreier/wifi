@@ -179,7 +179,9 @@ private:
         html += "<option value='1'" + String(config.hw.board_type == BOARD_T8 ? " selected" : "") + ">LILYGO T8 (LED: GPIO 21, Battery: GPIO 35, 100k/100k)</option>";
         html += "<option value='2'" + String(config.hw.board_type == BOARD_DEVKIT ? " selected" : "") + ">ESP32 DevKit V1 (LED: GPIO 2, No Battery)</option>";
         html += "<option value='4'" + String(config.hw.board_type == BOARD_C3_SUPERMINI ? " selected" : "") + ">ESP32-C3 Super Mini (LED: GPIO 8, No Battery)</option>";
-        html += "<option value='3'" + String(config.hw.board_type == BOARD_CUSTOM ? " selected" : "") + ">Custom / ESP32-C5 (Manual Configuration)</option>";
+        html += "<option value='5'" + String(config.hw.board_type == BOARD_ESP32S3 ? " selected" : "") + ">ESP32-S3 DevKit (LED: GPIO 2, No Battery)</option>";
+        html += "<option value='6'" + String(config.hw.board_type == BOARD_ESP32C5 ? " selected" : "") + ">ESP32-C5 Dual-Band (Wi-Fi 6 / 2.4 & 5 GHz, LED: GPIO 8)</option>";
+        html += "<option value='3'" + String(config.hw.board_type == BOARD_CUSTOM ? " selected" : "") + ">Custom Board (Manual Configuration)</option>";
         html += F("</select></div>");
 
         html += F("<div class='row'>"
@@ -297,6 +299,8 @@ private:
                   "  else if(t===1){led.value=21;bat.value=35;div.value='0.50';lbl.value='T8';}"
                   "  else if(t===2){led.value=2;bat.value=-1;div.value='0.50';lbl.value='DevKitV1';}"
                   "  else if(t===4){led.value=8;bat.value=-1;div.value='0.50';lbl.value='C3SuperMini';}"
+                  "  else if(t===5){led.value=2;bat.value=-1;div.value='0.50';lbl.value='ESP32S3';}"
+                  "  else if(t===6){led.value=8;bat.value=-1;div.value='0.33';lbl.value='ESP32C5';}"
                   "  else if(t===3){lbl.value='Custom';}"
                   "}"
                   "</script></body></html>");

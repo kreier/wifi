@@ -60,6 +60,17 @@ static void IRAM_ATTR promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type
     if (frame_len == 0) frame_len = 60; // minimum fallback estimate
 
     uint32_t rate_kbps = 24000; // default 24 Mbps
+#if defined(TARGET_ESP32C5) || defined(CONFIG_IDF_TARGET_ESP32C5)
+    // ESP32-C5 (802.11ax / HE) rx_ctrl has rate & sig_len, but not legacy sig_mode/mcs/sgi bitfields
+    static const uint32_t legacy_rates[] = {
+        1000, 2000, 5500, 11000, 6000, 9000, 12000, 18000, 24000, 36000, 48000, 54000
+    };
+    if (rx_ctrl->rate < 12) {
+        rate_kbps = legacy_rates[rx_ctrl->rate];
+    } else {
+        rate_kbps = 54000;
+    }
+#else
     if (rx_ctrl->sig_mode == 0) {
         // Legacy 802.11a/b/g rates (kbps)
         static const uint32_t legacy_rates[] = {
@@ -81,6 +92,7 @@ static void IRAM_ATTR promiscuousRxCallback(void* buf, wifi_promiscuous_pkt_type
             }
         }
     }
+#endif
 
     // Overhead: Preamble & PLCP (~32 µs) + Payload duration + SIFS/ACK (~40 µs)
     uint32_t frame_airtime_us = 32 + (uint32_t)((frame_len * 8000ULL) / rate_kbps) + 40;
