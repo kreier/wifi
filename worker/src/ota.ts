@@ -77,12 +77,12 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
       targetVersion = env.CANARY_VERSION.trim();
       track = "canary";
     } else {
-      targetVersion = env.STABLE_VERSION || "1.1.8";
+      targetVersion = env.STABLE_VERSION || "1.1.9";
       track = "stable";
     }
   } else {
     // Non-canary station: always follow stable production release
-    targetVersion = env.STABLE_VERSION || "1.1.8";
+    targetVersion = env.STABLE_VERSION || "1.1.9";
     track = "stable";
   }
 
@@ -171,7 +171,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
 
 // Handles binary delivery with Cloudflare R2 as primary and GitHub Releases / Pages as backup
 export async function handleFirmwareDownload(filename: string, request: Request, env: Env): Promise<Response> {
-  const stableTag = `v${env.STABLE_VERSION || "1.1.8"}`;
+  const stableTag = `v${env.STABLE_VERSION || "1.1.9"}`;
 
   // 1. Try Cloudflare R2 Storage (Zero egress fees, high speed)
   if (env.OTA_BUCKET) {
@@ -197,7 +197,7 @@ export async function handleFirmwareDownload(filename: string, request: Request,
     }
   }
 
-  // 2. Resolve target tag and canonical GitHub release asset name (supports canary suffixes e.g. v1.1.8-canary.1)
+  // 2. Resolve target tag and canonical GitHub release asset name (supports canary suffixes e.g. v1.1.9-canary.1)
   const match = filename.match(/v(\d+\.\d+\.\d+(?:-[a-zA-Z0-9\.]+)?)/);
   const tag = match ? `v${match[1]}` : stableTag;
 

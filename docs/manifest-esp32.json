@@ -1,6 +1,6 @@
 {
   "name": "Wi-Fi Monitor - ESP32",
-  "version": "1.1.8",
+  "version": "1.1.9",
   "funding_url": "https://github.com/kreier/wifi",
   "new_install_prompt_erase": true,
   "builds": [

@@ -15,6 +15,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.9] - 2026-11-21
+
+### Added & Enhanced (Web Dashboard & 7-Day Heatmaps)
+- **7-Day Historical Heatmap Mode Toggle (Max / Average)**:
+  - Added interactive `[Max (Peak)]` / `[Average]` toggle button group to the 7-Day Historical Heatmaps header.
+  - User preference is automatically saved to browser `localStorage` (`wifi_weekly_heatmap_mode`) and preserved across visits.
+  - **Wi-Fi Spectrum Matrix**: In Average mode, calculates true arithmetic mean channel airtime per 30-minute interval across the 7-day period with adjusted color scaling and rich tooltips (`Avg: X.X% | Peak: Y.Y% (Ch Z)`).
+  - **Bluetooth Matrix**: In Average mode, computes dynamic scale thresholds and colors cells by average device density rather than burst peak, updating the legend and badge (`Scale: Peak Avg N devices`).
+  - Filtered unmeasured placeholder channel entries (`airtime_pct == 0 && data_frames == 0 && mgmt_frames == 0 && ctrl_frames == 0 && !scan_duration_ms`) across 24h spectrum survey tables and weekly matrix renderers.
+
+### Fixed (Firmware Channel History & Battery Cadence)
+- **Resolved Periodic Zero-Airtime Dip & Half-Averaging Anomaly (`channel_history.h`)**:
+  - Fixed battery-cadence intermediate cycles (`is30mBoundary == false`) where 13-channel promiscuous scans are skipped: `sample_count` is no longer incremented for empty intermediate cycles, preventing premature generation of dummy 0% airtime records.
+  - Fixed rolling slot seeding: the first real measurement on a 30-minute boundary directly initializes the slot values rather than averaging against zero (which previously caused real 15.4% airtime measurements to be halved into 7.7% / 7.5%).
+  - Guarded `submitPendingHistory()` to require `sample_count > 0`, ensuring only valid measured channel data is staged and transmitted.
+
+### Enhanced (Network Probing & Firewall Compatibility)
+- **HTTP Probe Redirect Handling (`latency_prober.h`)**:
+  - Switched `HTTPClient` redirect policy to `HTTPC_DISABLE_FOLLOW_REDIRECTS`.
+  - When probe targets (such as `facebook.com` or `fast.com`) return HTTP 301/302 redirects to HTTPS, the probe records the valid TCP and HTTP response round-trip time without throwing an unencrypted SSL protocol error.
+- **Gateway Probe Firewall Traversal**:
+  - Expanded gateway latency probing to attempt TCP port **443** (HTTPS) in addition to port 80 and 53, enabling latency measurement on routers that restrict LAN management to HTTPS or drop plaintext HTTP SYN packets.
+- **DNS Resolver Robustness**:
+  - Updated POSIX `getaddrinfo()` socket type hints from `SOCK_STREAM` to `0` (any socket type) with automated fallback to `WiFi.hostByName()`, preventing lookup failures on strict router DNS implementations.
+
+---
+
 ## [1.1.8] - 2026-11-20
 
 ### Added & Enhanced (Multi-Architecture Firmware & Hardware Support)
