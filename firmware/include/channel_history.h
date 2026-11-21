@@ -119,42 +119,65 @@ public:
         }
 
         if (sameWindow) {
-            uint8_t n = slot.sample_count;
-            uint8_t nextN = (n < 255) ? (n + 1) : 255;
+            if (!items.empty()) {
+                uint8_t n = slot.sample_count;
+                uint8_t nextN = (n < 255) ? (n + 1) : 255;
 
-            for (const auto &it : items) {
-                if (it.channel >= 1 && it.channel <= CHAN_HIST_CHANS) {
-                    auto &cm = slot.channels[it.channel - 1];
-                    cm.airtime_pct = (uint8_t)(((uint32_t)cm.airtime_pct * n + (uint32_t)round(it.airtime_pct)) / nextN);
-                    cm.unique_transmitters = (uint8_t)(((uint32_t)cm.unique_transmitters * n + (it.unique_transmitters > 255 ? 255 : it.unique_transmitters)) / nextN);
-                    cm.mgmt_frames = (uint16_t)(((uint32_t)cm.mgmt_frames * n + it.mgmt_frames) / nextN);
-                    cm.data_frames = (uint16_t)(((uint32_t)cm.data_frames * n + it.data_frames) / nextN);
-                    cm.ctrl_frames = (uint16_t)(((uint32_t)cm.ctrl_frames * n + it.ctrl_frames) / nextN);
-                    for (int h = 0; h < 4; h++) {
-                        cm.rssi_hist[h] = (uint16_t)(((uint32_t)cm.rssi_hist[h] * n + it.rssi_hist[h]) / nextN);
+                if (n == 0) {
+                    // First real channel measurement in this slot
+                    for (const auto &it : items) {
+                        if (it.channel >= 1 && it.channel <= CHAN_HIST_CHANS) {
+                            auto &cm = slot.channels[it.channel - 1];
+                            cm.airtime_pct = (uint8_t)round(it.airtime_pct);
+                            cm.unique_transmitters = (it.unique_transmitters > 255) ? 255 : (uint8_t)it.unique_transmitters;
+                            cm.mgmt_frames = (it.mgmt_frames > 65535) ? 65535 : (uint16_t)it.mgmt_frames;
+                            cm.data_frames = (it.data_frames > 65535) ? 65535 : (uint16_t)it.data_frames;
+                            cm.ctrl_frames = (it.ctrl_frames > 65535) ? 65535 : (uint16_t)it.ctrl_frames;
+                            for (int h = 0; h < 4; h++) {
+                                cm.rssi_hist[h] = (it.rssi_hist[h] > 65535) ? 65535 : (uint16_t)it.rssi_hist[h];
+                            }
+                            if (cm.airtime_pct > slot.max_airtime_pct) {
+                                slot.max_airtime_pct = cm.airtime_pct;
+                            }
+                        }
                     }
-                    if (cm.airtime_pct > slot.max_airtime_pct) {
-                        slot.max_airtime_pct = cm.airtime_pct;
+                    slot.sample_count = 1;
+                } else {
+                    for (const auto &it : items) {
+                        if (it.channel >= 1 && it.channel <= CHAN_HIST_CHANS) {
+                            auto &cm = slot.channels[it.channel - 1];
+                            cm.airtime_pct = (uint8_t)(((uint32_t)cm.airtime_pct * n + (uint32_t)round(it.airtime_pct)) / nextN);
+                            cm.unique_transmitters = (uint8_t)(((uint32_t)cm.unique_transmitters * n + (it.unique_transmitters > 255 ? 255 : it.unique_transmitters)) / nextN);
+                            cm.mgmt_frames = (uint16_t)(((uint32_t)cm.mgmt_frames * n + it.mgmt_frames) / nextN);
+                            cm.data_frames = (uint16_t)(((uint32_t)cm.data_frames * n + it.data_frames) / nextN);
+                            cm.ctrl_frames = (uint16_t)(((uint32_t)cm.ctrl_frames * n + it.ctrl_frames) / nextN);
+                            for (int h = 0; h < 4; h++) {
+                                cm.rssi_hist[h] = (uint16_t)(((uint32_t)cm.rssi_hist[h] * n + it.rssi_hist[h]) / nextN);
+                            }
+                            if (cm.airtime_pct > slot.max_airtime_pct) {
+                                slot.max_airtime_pct = cm.airtime_pct;
+                            }
+                        }
                     }
+                    slot.sample_count = nextN;
                 }
+                slot.transmitted = 0; // New channel cycle added to 30-min record; mark pending upload
             }
             if (bleUniqueDevices > slot.ble_unique_devices) slot.ble_unique_devices = bleUniqueDevices;
             if (bleRandomMacs > slot.ble_random_macs) slot.ble_random_macs = bleRandomMacs;
             if (classicDevices > slot.classic_devices) slot.classic_devices = classicDevices;
             if (batteryMv > 0) slot.battery_mv = batteryMv;
 
-            slot.sample_count = nextN;
-            slot.transmitted = 0; // New cycle added to 30-min record; mark pending upload
             Serial.printf("[ChannelHistory] Averaged cycle into 30-min slot %u (sample count: %u, BLE: %u, RPA: %u, Classic: %u, Bat: %u mV)\n",
-                          (unsigned)slotIdx, (unsigned)nextN, (unsigned)slot.ble_unique_devices,
+                          (unsigned)slotIdx, (unsigned)slot.sample_count, (unsigned)slot.ble_unique_devices,
                           (unsigned)slot.ble_random_macs, (unsigned)slot.classic_devices, (unsigned)slot.battery_mv);
         } else {
             // New 30-minute interval: reset slot and populate initial measurement
             slot.valid = 1;
             slot.timestamp = slotTs;
             slot.relative_sec = uptimeSec;
-            slot.sample_count = 1;
-            slot.transmitted = 0;
+            slot.sample_count = items.empty() ? 0 : 1;
+            slot.transmitted = items.empty() ? 1 : 0; // Don't trigger upload of unmeasured empty slot
             slot.ble_unique_devices = bleUniqueDevices;
             slot.ble_random_macs = bleRandomMacs;
             slot.classic_devices = classicDevices;
@@ -162,19 +185,21 @@ public:
             slot.max_airtime_pct = 0;
             memset(slot.channels, 0, sizeof(slot.channels));
 
-            for (const auto &it : items) {
-                if (it.channel >= 1 && it.channel <= CHAN_HIST_CHANS) {
-                    auto &cm = slot.channels[it.channel - 1];
-                    cm.airtime_pct = (uint8_t)round(it.airtime_pct);
-                    cm.unique_transmitters = (it.unique_transmitters > 255) ? 255 : (uint8_t)it.unique_transmitters;
-                    cm.mgmt_frames = (it.mgmt_frames > 65535) ? 65535 : (uint16_t)it.mgmt_frames;
-                    cm.data_frames = (it.data_frames > 65535) ? 65535 : (uint16_t)it.data_frames;
-                    cm.ctrl_frames = (it.ctrl_frames > 65535) ? 65535 : (uint16_t)it.ctrl_frames;
-                    for (int h = 0; h < 4; h++) {
-                        cm.rssi_hist[h] = (it.rssi_hist[h] > 65535) ? 65535 : (uint16_t)it.rssi_hist[h];
-                    }
-                    if (cm.airtime_pct > slot.max_airtime_pct) {
-                        slot.max_airtime_pct = cm.airtime_pct;
+            if (!items.empty()) {
+                for (const auto &it : items) {
+                    if (it.channel >= 1 && it.channel <= CHAN_HIST_CHANS) {
+                        auto &cm = slot.channels[it.channel - 1];
+                        cm.airtime_pct = (uint8_t)round(it.airtime_pct);
+                        cm.unique_transmitters = (it.unique_transmitters > 255) ? 255 : (uint8_t)it.unique_transmitters;
+                        cm.mgmt_frames = (it.mgmt_frames > 65535) ? 65535 : (uint16_t)it.mgmt_frames;
+                        cm.data_frames = (it.data_frames > 65535) ? 65535 : (uint16_t)it.data_frames;
+                        cm.ctrl_frames = (it.ctrl_frames > 65535) ? 65535 : (uint16_t)it.ctrl_frames;
+                        for (int h = 0; h < 4; h++) {
+                            cm.rssi_hist[h] = (it.rssi_hist[h] > 65535) ? 65535 : (uint16_t)it.rssi_hist[h];
+                        }
+                        if (cm.airtime_pct > slot.max_airtime_pct) {
+                            slot.max_airtime_pct = cm.airtime_pct;
+                        }
                     }
                 }
             }
@@ -208,7 +233,7 @@ public:
 
         std::vector<uint8_t> pendingIndices;
         for (uint8_t i = 0; i < CHAN_HIST_SLOTS; i++) {
-            if (_slots[i].valid && !_slots[i].transmitted && _slots[i].timestamp >= 1700000000) {
+            if (_slots[i].valid && !_slots[i].transmitted && _slots[i].timestamp >= 1700000000 && _slots[i].sample_count > 0) {
                 pendingIndices.push_back(i);
             }
         }

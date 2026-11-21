@@ -183,8 +183,8 @@ private:
         if (gwIp == IPAddress(0, 0, 0, 0)) return -1;
         WiFiClient client;
         uint32_t t0 = millis();
-        // Try connect to port 80 or 53 on gateway to measure TCP SYN-ACK RTT
-        if (client.connect(gwIp, 80, timeoutMs) || client.connect(gwIp, 53, timeoutMs)) {
+        // Try connect to port 80, 443, or 53 on gateway to measure TCP SYN-ACK RTT
+        if (client.connect(gwIp, 80, timeoutMs) || client.connect(gwIp, 443, timeoutMs) || client.connect(gwIp, 53, timeoutMs)) {
             uint32_t elapsed = millis() - t0;
             client.stop();
             return (int32_t)elapsed;
@@ -197,13 +197,19 @@ private:
         struct addrinfo hints, *res = nullptr;
         memset(&hints, 0, sizeof(hints));
         hints.ai_family = AF_INET;
-        hints.ai_socktype = SOCK_STREAM;
+        hints.ai_socktype = 0; // Any socket type
 
         int err = getaddrinfo(hostname, NULL, &hints, &res);
         uint32_t elapsed = millis() - t0;
         if (err == 0 && res != nullptr) {
             freeaddrinfo(res);
             return (int32_t)elapsed;
+        }
+
+        // Fallback to WiFi.hostByName if getaddrinfo fails
+        IPAddress resolvedIp;
+        if (WiFi.hostByName(hostname, resolvedIp)) {
+            return (int32_t)(millis() - t0);
         }
         return -1;
     }
@@ -259,7 +265,7 @@ private:
     static int32_t measureHttpLatency(WiFiClient &client, const char *url, const char *method, uint32_t timeoutMs, bool &captiveFlag) {
         HTTPClient http;
         http.setTimeout(timeoutMs);
-        http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+        http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
         http.setReuse(false);
 
         if (!http.begin(client, url)) {
