@@ -25,7 +25,7 @@ def parse_utilization(log_file, fw_path, partition_size=1966080):
     return flash_str, ram_str, free_flash, free_flash_pct
 
 def main():
-    tag = sys.argv[1] if len(sys.argv) > 1 else os.getenv("TAG", "v1.1.9")
+    tag = sys.argv[1] if len(sys.argv) > 1 else os.getenv("TAG", "v1.1.10")
     
     # ESP32 Standard
     esp32_fw = f"release_assets/firmware-esp32-{tag}.bin"

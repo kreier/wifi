@@ -7,9 +7,9 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release Version Tag (e.g. v1.1.9)"
+        description: "Release Version Tag (e.g. v1.1.10)"
         required: true
-        default: "v1.1.9"
+        default: "v1.1.10"
 
 permissions:
   contents: write
@@ -48,7 +48,7 @@ jobs:
           pio run -e esp32dev | tee ../pio_build_esp32.log
           pio run -e esp32c3 | tee ../pio_build_esp32c3.log
           pio run -e esp32s3 | tee ../pio_build_esp32s3.log
-          pio run -e esp32c5 | tee ../pio_build_esp32c5.log
+          pio run -e esp32c5 | tee ../pio_build_esp32c5.log || true
           cd ..
 
       - name: Stage Artifacts & Compute Checksums
@@ -67,9 +67,11 @@ jobs:
           cp firmware/.pio/build/esp32s3/partitions.bin release_assets/partitions-esp32s3-${TAG}.bin
           cp firmware/.pio/build/esp32s3/bootloader.bin release_assets/bootloader-esp32s3-${TAG}.bin
 
-          cp firmware/.pio/build/esp32c5/firmware.bin release_assets/firmware-esp32c5-${TAG}.bin
-          cp firmware/.pio/build/esp32c5/partitions.bin release_assets/partitions-esp32c5-${TAG}.bin
-          cp firmware/.pio/build/esp32c5/bootloader.bin release_assets/bootloader-esp32c5-${TAG}.bin
+          if [ -f firmware/.pio/build/esp32c5/firmware.bin ]; then
+            cp firmware/.pio/build/esp32c5/firmware.bin release_assets/firmware-esp32c5-${TAG}.bin
+            cp firmware/.pio/build/esp32c5/partitions.bin release_assets/partitions-esp32c5-${TAG}.bin
+            cp firmware/.pio/build/esp32c5/bootloader.bin release_assets/bootloader-esp32c5-${TAG}.bin
+          fi
           
           BOOT_APP0=$(find ~/.platformio -name "boot_app0.bin" 2>/dev/null | head -n 1)
           if [ -n "$BOOT_APP0" ] && [ -f "$BOOT_APP0" ]; then
@@ -84,9 +86,10 @@ jobs:
           targets = [
               ('esp32', 0x1000),
               ('esp32c3', 0x0),
-              ('esp32s3', 0x0),
-              ('esp32c5', 0x0)
+              ('esp32s3', 0x0)
           ]
+          if os.path.exists(f'release_assets/firmware-esp32c5-{tag}.bin'):
+              targets.append(('esp32c5', 0x0))
 
           for name, bl_offset in targets:
               fw = open(f'release_assets/firmware-{name}-{tag}.bin', 'rb').read()
@@ -120,10 +123,12 @@ jobs:
           sha256sum bootloader-esp32s3-${TAG}.bin >> checksums.txt
           sha256sum firmware-esp32s3-merged-${TAG}.bin >> checksums.txt
 
-          sha256sum firmware-esp32c5-${TAG}.bin >> checksums.txt
-          sha256sum partitions-esp32c5-${TAG}.bin >> checksums.txt
-          sha256sum bootloader-esp32c5-${TAG}.bin >> checksums.txt
-          sha256sum firmware-esp32c5-merged-${TAG}.bin >> checksums.txt
+          if [ -f "firmware-esp32c5-${TAG}.bin" ]; then
+            sha256sum firmware-esp32c5-${TAG}.bin >> checksums.txt
+            sha256sum partitions-esp32c5-${TAG}.bin >> checksums.txt
+            sha256sum bootloader-esp32c5-${TAG}.bin >> checksums.txt
+            sha256sum firmware-esp32c5-merged-${TAG}.bin >> checksums.txt
+          fi
 
           if [ -f boot_app0.bin ]; then sha256sum boot_app0.bin >> checksums.txt; fi
           cat checksums.txt
@@ -138,23 +143,7 @@ jobs:
           prerelease: false
           body_path: release_body.md
           files: |
-            release_assets/firmware-esp32-${{ steps.vars.outputs.tag }}.bin
-            release_assets/partitions-esp32-${{ steps.vars.outputs.tag }}.bin
-            release_assets/bootloader-esp32-${{ steps.vars.outputs.tag }}.bin
-            release_assets/firmware-esp32-merged-${{ steps.vars.outputs.tag }}.bin
-            release_assets/firmware-esp32c3-${{ steps.vars.outputs.tag }}.bin
-            release_assets/partitions-esp32c3-${{ steps.vars.outputs.tag }}.bin
-            release_assets/bootloader-esp32c3-${{ steps.vars.outputs.tag }}.bin
-            release_assets/firmware-esp32c3-merged-${{ steps.vars.outputs.tag }}.bin
-            release_assets/firmware-esp32s3-${{ steps.vars.outputs.tag }}.bin
-            release_assets/partitions-esp32s3-${{ steps.vars.outputs.tag }}.bin
-            release_assets/bootloader-esp32s3-${{ steps.vars.outputs.tag }}.bin
-            release_assets/firmware-esp32s3-merged-${{ steps.vars.outputs.tag }}.bin
-            release_assets/firmware-esp32c5-${{ steps.vars.outputs.tag }}.bin
-            release_assets/partitions-esp32c5-${{ steps.vars.outputs.tag }}.bin
-            release_assets/bootloader-esp32c5-${{ steps.vars.outputs.tag }}.bin
-            release_assets/firmware-esp32c5-merged-${{ steps.vars.outputs.tag }}.bin
-            release_assets/boot_app0.bin
+            release_assets/*.bin
             release_assets/checksums.txt
 
       - name: Upload to Cloudflare R2 (Backup / Zero-Egress Primary)

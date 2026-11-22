@@ -45,7 +45,7 @@ export default {
       if (path === "/manifest-c3-update.json" || path === "/firmware/manifest-c3-update.json" || path === "/manifest-esp32c3-update.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32-C3 (Update)",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_skip_erase: true,
           builds: [
@@ -73,7 +73,7 @@ export default {
       if (path === "/manifest-c3.json" || path === "/firmware/manifest-c3.json" || path === "/manifest-esp32c3.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32-C3",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_prompt_erase: true,
           builds: [
@@ -101,7 +101,7 @@ export default {
       if (path === "/manifest-esp32-update.json" || path === "/firmware/manifest-esp32-update.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32 (Update)",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_skip_erase: true,
           builds: [
@@ -129,7 +129,7 @@ export default {
       if (path === "/manifest-esp32.json" || path === "/firmware/manifest-esp32.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_prompt_erase: true,
           builds: [
@@ -157,7 +157,7 @@ export default {
       if (path === "/manifest-s3-update.json" || path === "/firmware/manifest-s3-update.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32-S3 (Update)",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_skip_erase: true,
           builds: [
@@ -185,7 +185,7 @@ export default {
       if (path === "/manifest-s3.json" || path === "/firmware/manifest-s3.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32-S3",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_prompt_erase: true,
           builds: [
@@ -213,7 +213,7 @@ export default {
       if (path === "/manifest-c5-update.json" || path === "/firmware/manifest-c5-update.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32-C5 (Update)",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_skip_erase: true,
           builds: [
@@ -241,7 +241,7 @@ export default {
       if (path === "/manifest-c5.json" || path === "/firmware/manifest-c5.json") {
         const manifest = {
           name: "Wi-Fi Monitor - ESP32-C5 (Wi-Fi 6 / 5 GHz)",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_prompt_erase: true,
           builds: [
@@ -269,7 +269,7 @@ export default {
       if (path === "/manifest-update.json" || path === "/firmware/manifest-update.json") {
         const manifest = {
           name: "Wi-Fi Monitor (Update)",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_skip_erase: true,
           builds: [
@@ -324,7 +324,7 @@ export default {
       if (path === "/manifest.json" || path === "/firmware/manifest.json") {
         const manifest = {
           name: "Wi-Fi Monitor",
-          version: env.STABLE_VERSION || "1.1.9",
+          version: env.STABLE_VERSION || "1.1.10",
           funding_url: "https://github.com/kreier/wifi",
           new_install_prompt_erase: true,
           builds: [

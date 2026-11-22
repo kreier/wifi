@@ -77,12 +77,12 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
       targetVersion = env.CANARY_VERSION.trim();
       track = "canary";
     } else {
-      targetVersion = env.STABLE_VERSION || "1.1.9";
+      targetVersion = env.STABLE_VERSION || "1.1.10";
       track = "stable";
     }
   } else {
     // Non-canary station: always follow stable production release
-    targetVersion = env.STABLE_VERSION || "1.1.9";
+    targetVersion = env.STABLE_VERSION || "1.1.10";
     track = "stable";
   }
 
@@ -171,7 +171,7 @@ export async function handleOta(request: Request, env: Env): Promise<Response> {
 
 // Handles binary delivery with Cloudflare R2 as primary and GitHub Releases / Pages as backup
 export async function handleFirmwareDownload(filename: string, request: Request, env: Env): Promise<Response> {
-  const stableTag = `v${env.STABLE_VERSION || "1.1.9"}`;
+  const stableTag = `v${env.STABLE_VERSION || "1.1.10"}`;
 
   // 1. Try Cloudflare R2 Storage (Zero egress fees, high speed)
   if (env.OTA_BUCKET) {
@@ -197,7 +197,7 @@ export async function handleFirmwareDownload(filename: string, request: Request,
     }
   }
 
-  // 2. Resolve target tag and canonical GitHub release asset name (supports canary suffixes e.g. v1.1.9-canary.1)
+  // 2. Resolve target tag and canonical GitHub release asset name (supports canary suffixes e.g. v1.1.10-canary.1)
   const match = filename.match(/v(\d+\.\d+\.\d+(?:-[a-zA-Z0-9\.]+)?)/);
   const tag = match ? `v${match[1]}` : stableTag;
 
@@ -265,8 +265,31 @@ export async function handleFirmwareDownload(filename: string, request: Request,
     console.warn("[OTA] Error fetching from GitHub Releases, trying GitHub Pages static fallback:", fetchErr);
   }
 
-  // 3. GitHub Pages static fallback (e.g. for boot_app0.bin, partitions.bin, etc.)
-  const pagesUrl = `https://kreier.github.io/wifi/firmware/${filename}`;
+  // 3. GitHub Pages static fallback (serves docs/firmware/ mirror)
+  let pagesFilename = filename;
+  if (/^firmware-esp32(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "firmware.bin";
+  } else if (/^firmware-esp32c3(-v\d.*)?\.bin$/.test(filename) || /^firmware-c3(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "firmware-c3.bin";
+  } else if (/^firmware-esp32s3(-v\d.*)?\.bin$/.test(filename) || /^firmware-s3(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "firmware-s3.bin";
+  } else if (/^firmware-esp32c5(-v\d.*)?\.bin$/.test(filename) || /^firmware-c5(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "firmware-c5.bin";
+  } else if (/^partitions-esp32(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "partitions.bin";
+  } else if (/^partitions-esp32c3(-v\d.*)?\.bin$/.test(filename) || /^partitions-c3(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "partitions-c3.bin";
+  } else if (/^partitions-esp32s3(-v\d.*)?\.bin$/.test(filename) || /^partitions-s3(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "partitions-s3.bin";
+  } else if (/^bootloader-esp32(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "bootloader.bin";
+  } else if (/^bootloader-esp32c3(-v\d.*)?\.bin$/.test(filename) || /^bootloader-c3(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "bootloader-c3.bin";
+  } else if (/^bootloader-esp32s3(-v\d.*)?\.bin$/.test(filename) || /^bootloader-s3(-v\d.*)?\.bin$/.test(filename)) {
+    pagesFilename = "bootloader-s3.bin";
+  }
+
+  const pagesUrl = `https://kreier.github.io/wifi/firmware/${pagesFilename}`;
   try {
     const pagesResponse = await fetch(pagesUrl, {
       redirect: "follow",
@@ -274,6 +297,7 @@ export async function handleFirmwareDownload(filename: string, request: Request,
     });
 
     if (pagesResponse.ok && pagesResponse.body) {
+      console.log(`[OTA] Serving ${filename} via GitHub Pages mirror (${pagesFilename})`);
       const headers = new Headers();
       headers.set("Content-Type", "application/octet-stream");
       const len = pagesResponse.headers.get("Content-Length");
@@ -291,8 +315,11 @@ export async function handleFirmwareDownload(filename: string, request: Request,
     console.error("[OTA] GitHub Pages fallback also failed:", pagesErr);
   }
 
-  // Final fallback: redirect to GitHub release asset
-  return Response.redirect(githubUrl, 302);
+  // Final fallback: Return 404 without redirecting to prevent ESP32 HTTPUpdate TLS re-negotiation crash
+  return new Response(`Firmware binary '${filename}' not found on R2, GitHub Releases, or GitHub Pages.`, {
+    status: 404,
+    headers: { "Content-Type": "text/plain" }
+  });
 }
 
 // Admin / Canary API: Set or clear canary target version for a station

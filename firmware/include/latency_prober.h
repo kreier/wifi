@@ -117,10 +117,9 @@ public:
         Serial.printf("[Prober]   dns ipv6    : %d ms\n", result.dns_ipv6_ms);
 
         // 6. Measure HTTP latency to 6 global targets (3000 ms timeout per target)
-        WiFiClient client;
         for (size_t i = 0; i < NUM_PROBE_TARGETS; i++) {
             const ProbeTarget &tgt = PROBE_TARGETS[i];
-            int32_t lat = measureHttpLatency(client, tgt.url, tgt.method, 3000, result.captive_detected);
+            int32_t lat = measureHttpLatency(tgt.url, tgt.method, 3000, result.captive_detected);
             
             if (strcmp(tgt.name, "google") == 0) result.google_ms = lat;
             else if (strcmp(tgt.name, "cloudflare") == 0) result.cloudflare_ms = lat;
@@ -182,12 +181,17 @@ private:
     static int32_t measureGatewayLatency(IPAddress gwIp, uint32_t timeoutMs) {
         if (gwIp == IPAddress(0, 0, 0, 0)) return -1;
         WiFiClient client;
-        uint32_t t0 = millis();
-        // Try connect to port 80, 443, or 53 on gateway to measure TCP SYN-ACK RTT
-        if (client.connect(gwIp, 80, timeoutMs) || client.connect(gwIp, 443, timeoutMs) || client.connect(gwIp, 53, timeoutMs)) {
-            uint32_t elapsed = millis() - t0;
-            client.stop();
-            return (int32_t)elapsed;
+        const uint16_t ports[] = { 80, 443, 53 };
+        uint32_t perPortTimeout = (timeoutMs > 1200) ? 400 : (timeoutMs / 3);
+        if (perPortTimeout < 200) perPortTimeout = 200;
+
+        for (uint16_t port : ports) {
+            uint32_t t0 = millis();
+            if (client.connect(gwIp, port, perPortTimeout)) {
+                uint32_t elapsed = millis() - t0;
+                client.stop();
+                return (int32_t)elapsed;
+            }
         }
         return -1;
     }
@@ -262,13 +266,15 @@ private:
         return -1; // Timeout (indicates IPv6 DNS blackholing / timeout)
     }
 
-    static int32_t measureHttpLatency(WiFiClient &client, const char *url, const char *method, uint32_t timeoutMs, bool &captiveFlag) {
+    static int32_t measureHttpLatency(const char *url, const char *method, uint32_t timeoutMs, bool &captiveFlag) {
+        WiFiClient client;
         HTTPClient http;
         http.setTimeout(timeoutMs);
         http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
         http.setReuse(false);
 
         if (!http.begin(client, url)) {
+            client.stop();
             return -1;
         }
 
@@ -284,6 +290,7 @@ private:
         }
 
         http.end();
+        client.stop();
 
         if (httpCode > 0 && elapsed <= timeoutMs) {
             return (int32_t)elapsed;
@@ -364,8 +371,7 @@ private:
 
     static void auditPathMtu(NetworkDiagnostics &diag) {
         // Test standard MTU sizes using HTTP canary
-        WiFiClient client;
-        diag.mtu_1500_ok = (measureHttpLatency(client, "http://cp.cloudflare.com/", "GET", 2500, diag.captive_portal_detected) > 0);
+        diag.mtu_1500_ok = (measureHttpLatency("http://cp.cloudflare.com/", "GET", 2500, diag.captive_portal_detected) > 0);
         diag.mtu_1492_ok = true;
         diag.mtu_1420_ok = true;
     }

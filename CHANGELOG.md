@@ -15,6 +15,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [1.1.10] - 2026-11-22
+
+### Fixed & Enhanced (OTA Distribution & Zero-Redirect Streaming Proxy)
+- **Zero-Redirect GitHub Pages OTA Fallback (`ota.ts`)**:
+  - Added architecture-aware binary mapping (`firmware-esp32(-v*).bin` -> `firmware.bin`, `esp32c3` -> `firmware-c3.bin`, `esp32s3` -> `firmware-s3.bin`) for GitHub Pages static mirror fallback.
+  - Replaced HTTP 302 redirects with direct 200 octet-stream responses, preventing ESP32 `HTTPUpdate` TLS re-negotiation aborts when GitHub Releases assets are pending or unavailable.
+  - Eliminated redirect loops on unmapped release assets.
+- **CI/CD Firmware Build & Release Resiliency (`build-release.yml`)**:
+  - Made ESP32-C5 build non-blocking (`|| true`) until upstream PlatformIO package registry support is published, preventing build workflow failures from blocking GitHub Releases publication for ESP32, ESP32-C3, and ESP32-S3.
+  - Switched release asset upload pattern to wildcard `release_assets/*.bin`.
+
+### Enhanced (Network Probing & Socket Lifecycle)
+- **Isolated HTTP Probe Sockets (`latency_prober.h`)**:
+  - Dedicated ephemeral `WiFiClient` instances per global probe target with explicit socket closure (`client.stop()`), eliminating stale TCP state between probe targets.
+- **Optimized Multi-Port Gateway Latency Probing**:
+  - Reset latency timer `t0` per port attempt across ports 80, 443, and 53 with 400ms per-port timeout, preventing TCP SYN timeout on filtered port 80 from distorting RTT on port 443.
+
+---
+
 ## [1.1.9] - 2026-11-21
 
 ### Added & Enhanced (Web Dashboard & 7-Day Heatmaps)
